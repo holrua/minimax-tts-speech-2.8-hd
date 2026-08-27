@@ -73,7 +73,11 @@ export function HistoryPanel({ refreshSignal }: HistoryPanelProps) {
   };
 
   const download = (item: HistoryItem) => {
-    const ext = item.mimeType.includes("pcm") ? "pcm" : "mp3";
+    let ext = "mp3";
+    if (item.mimeType.includes("wav")) ext = "wav";
+    else if (item.mimeType.includes("opus")) ext = "opus";
+    else if (item.mimeType.includes("flac")) ext = "flac";
+    else if (item.mimeType.includes("pcm")) ext = "pcm";
     const a = document.createElement("a");
     a.href = `data:${item.mimeType};base64,${item.audioBase64}`;
     a.download = `voicecraft-${item.id}.${ext}`;

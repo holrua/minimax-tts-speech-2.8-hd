@@ -11,7 +11,7 @@ export const STORAGE_KEYS = {
 export interface AppSettings {
   defaultVoice: string;
   speed: number;
-  outputFormat: "mp3" | "pcm";
+  outputFormat: "mp3" | "wav" | "opus" | "flac" | "pcm";
   model: string;
 }
 
@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultVoice: "English_expressive_narrator",
   speed: 1,
   outputFormat: "mp3",
-  model: "minimax/speech-2.8-hd",
+  model: "speech-2.8-hd",
 };
 
 export interface CustomVoice {
@@ -37,7 +37,8 @@ export interface HistoryItem {
   voice: string;
   voiceLabel: string;
   speed: number;
-  format: "mp3" | "pcm";
+  format: "mp3" | "wav" | "opus" | "flac" | "pcm";
+  model?: string;
   emotion?: string;
   audioBase64: string;
   mimeType: string;

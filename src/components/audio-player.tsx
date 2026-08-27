@@ -98,7 +98,11 @@ export function AudioPlayer({
   };
 
   const download = () => {
-    const ext = mimeType?.includes("pcm") ? "pcm" : "mp3";
+    let ext = "mp3";
+    if (mimeType?.includes("wav")) ext = "wav";
+    else if (mimeType?.includes("opus")) ext = "opus";
+    else if (mimeType?.includes("flac")) ext = "flac";
+    else if (mimeType?.includes("pcm")) ext = "pcm";
     const a = document.createElement("a");
     a.href = src;
     a.download = `${fileName}.${ext}`;

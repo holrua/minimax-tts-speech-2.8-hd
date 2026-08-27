@@ -56,6 +56,7 @@ import {
   type HistoryItem,
 } from "@/lib/storage";
 import { VOICE_PRESETS, VOICE_CATEGORIES, type VoiceCategory } from "@/lib/voices";
+import { TTS_MODELS, getModel } from "@/lib/chinaapi-models";
 import {
   EMOTION_PRESETS,
   SOUND_TAG_PRESETS,
@@ -83,8 +84,9 @@ export function TtsPanel({
   const [voice, setVoice] = React.useState("English_expressive_narrator");
   const [category, setCategory] = React.useState<VoiceCategory>("english");
   const [speed, setSpeed] = React.useState(1);
-  const [format, setFormat] = React.useState<"mp3" | "pcm">("mp3");
+  const [format, setFormat] = React.useState<"mp3" | "wav" | "opus" | "flac" | "pcm">("mp3");
   const [emotion, setEmotion] = React.useState("auto");
+  const [model, setModel] = React.useState("speech-2.8-hd");
   const [useCustomId, setUseCustomId] = React.useState(false);
   const [customId, setCustomId] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -105,6 +107,7 @@ export function TtsPanel({
     setVoice(s.defaultVoice);
     setSpeed(s.speed);
     setFormat(s.outputFormat);
+    setModel(s.model);
     setHasKey(!!getApiKey());
     setCustomVoicesState(getCustomVoices().map((v) => ({ id: v.id, name: v.name })));
   }, [refreshSignal]);
@@ -161,7 +164,7 @@ export function TtsPanel({
       setHasKey(false);
       toast({
         title: "مفتاح API مفقود",
-        description: "افتح الإعدادات وأدخل مفتاح YepAPI أولًا.",
+        description: "افتح الإعدادات وأدخل مفتاح ChinaAPI أولًا.",
         variant: "destructive",
       });
       onOpenSettings();
@@ -192,11 +195,11 @@ export function TtsPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey: key,
-          prompt: text,
+          input: text,
           voice: finalVoice,
           speed,
-          outputFormat: format,
-          model: getSettings().model,
+          responseFormat: format,
+          model,
           emotion,
         }),
       });
@@ -207,7 +210,7 @@ export function TtsPanel({
         toast({ title: "فشل التوليد", description: msg, variant: "destructive" });
         return;
       }
-      const mime = data.audio.mimeType || (format === "pcm" ? "audio/pcm" : "audio/mpeg");
+      const mime = data.audio.mimeType || "audio/mpeg";
       const dataUrl = `data:${mime};base64,${data.audio.base64}`;
       setResultSrc(dataUrl);
       setResultMime(mime);
@@ -221,6 +224,7 @@ export function TtsPanel({
         voiceLabel: vLabel,
         speed,
         format,
+        model,
         emotion: emotion !== "auto" ? emotion : undefined,
         audioBase64: data.audio.base64,
         mimeType: mime,
@@ -529,6 +533,53 @@ export function TtsPanel({
             </div>
           )}
 
+          {/* Model picker */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">النموذج</Label>
+              {(() => {
+                const m = getModel(model);
+                return m?.badge ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {m.badge}
+                  </Badge>
+                ) : null;
+              })()}
+            </div>
+            <Select dir="rtl" value={model} onValueChange={setModel}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {TTS_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <span className="flex flex-col">
+                      <span className="flex items-center gap-1.5">
+                        {m.label}
+                        {m.badge && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            {m.badge}
+                          </Badge>
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground" dir="ltr">
+                        {m.id}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(() => {
+              const m = getModel(model);
+              return m ? (
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {m.description}
+                </p>
+              ) : null;
+            })()}
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm">سرعة التشغيل</Label>
@@ -552,13 +603,24 @@ export function TtsPanel({
             <ToggleGroup
               type="single"
               value={format}
-              onValueChange={(v) => v && setFormat(v as "mp3" | "pcm")}
-              className="w-full justify-start gap-2"
+              onValueChange={(v) =>
+                v && setFormat(v as "mp3" | "wav" | "opus" | "flac" | "pcm")
+              }
+              className="w-full justify-start gap-2 flex-wrap"
             >
-              <ToggleGroupItem value="mp3" className="flex-1 text-xs">
+              <ToggleGroupItem value="mp3" className="text-xs">
                 MP3
               </ToggleGroupItem>
-              <ToggleGroupItem value="pcm" className="flex-1 text-xs">
+              <ToggleGroupItem value="wav" className="text-xs">
+                WAV
+              </ToggleGroupItem>
+              <ToggleGroupItem value="opus" className="text-xs">
+                OPUS
+              </ToggleGroupItem>
+              <ToggleGroupItem value="flac" className="text-xs">
+                FLAC
+              </ToggleGroupItem>
+              <ToggleGroupItem value="pcm" className="text-xs">
                 PCM
               </ToggleGroupItem>
             </ToggleGroup>

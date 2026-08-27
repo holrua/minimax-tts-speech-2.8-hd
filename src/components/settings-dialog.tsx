@@ -40,6 +40,7 @@ import {
   type AppSettings,
 } from "@/lib/storage";
 import { VOICE_PRESETS } from "@/lib/voices";
+import { TTS_MODELS } from "@/lib/chinaapi-models";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -69,10 +70,10 @@ export function SettingsDialog({
 
   const handleSave = () => {
     const trimmed = keyInput.trim();
-    if (trimmed && !trimmed.startsWith("yep_")) {
+    if (trimmed && !trimmed.startsWith("sk-")) {
       toast({
         title: "تنبيه",
-        description: "مفتاح YepAPI يبدأ عادةً بـ yep_ . تأكد من صحة المفتاح.",
+        description: "مفتاح ChinaAPI يبدأ عادةً بـ sk- . تأكد من صحة المفتاح.",
         variant: "destructive",
       });
     }
@@ -104,7 +105,7 @@ export function SettingsDialog({
           </DialogTitle>
           <DialogDescription>
             تُحفظ كل البيانات في متصفحك فقط — لا يوجد تسجيل دخول ولا حساب.
-            مفتاحك لا يُرسل إلا إلى خوادم YepAPI عبر واجهتنا الخلفية.
+            مفتاحك لا يُرسل إلا إلى خوادم ChinaAPI عبر واجهتنا الخلفية.
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +114,7 @@ export function SettingsDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="apikey" className="text-base font-semibold">
-                مفتاح YepAPI
+                مفتاح ChinaAPI
               </Label>
               {hasKey ? (
                 <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
@@ -130,7 +131,7 @@ export function SettingsDialog({
                 id="apikey"
                 type={showKey ? "text" : "password"}
                 dir="ltr"
-                placeholder="yep_sk_..."
+                placeholder="sk-..."
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 className="pe-10 font-mono text-sm"
@@ -196,14 +197,44 @@ export function SettingsDialog({
 
               <div className="space-y-2">
                 <Label className="text-sm">نموذج TTS</Label>
-                <Input
-                  dir="ltr"
+                <Select
+                  dir="rtl"
                   value={settings.model}
-                  onChange={(e) =>
-                    setLocalSettings({ ...settings, model: e.target.value })
+                  onValueChange={(v) =>
+                    setLocalSettings({ ...settings, model: v })
                   }
-                  className="font-mono text-sm"
-                />
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {TTS_MODELS.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <span className="flex flex-col">
+                          <span className="flex items-center gap-1.5">
+                            {m.label}
+                            {m.badge && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                {m.badge}
+                              </Badge>
+                            )}
+                          </span>
+                          <span className="text-xs text-muted-foreground" dir="ltr">
+                            {m.id}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(() => {
+                  const m = TTS_MODELS.find((x) => x.id === settings.model);
+                  return m ? (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {m.description}
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
           )}

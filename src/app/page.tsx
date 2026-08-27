@@ -90,7 +90,7 @@ export default function Home() {
         <section className="mb-8 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur-sm mb-4">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            مدعوم بـ MiniMax Speech 2.8 HD عبر YepAPI
+            مدعوم بـ ChinaAPI — Speech 2.8 HD ونماذج متعددة اللغات والاستنساخ
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text">
             حوّل أي نص إلى صوت عالي الجودة
@@ -154,9 +154,9 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="font-mono">minimax/speech-2.8-hd</span>
+            <span className="font-mono">api.chinaapi.ai/v1</span>
             <span>·</span>
-            <span>$0.211 / 1K chars</span>
+            <span>الفوترة بعدد أحرف النص</span>
           </div>
         </div>
       </footer>

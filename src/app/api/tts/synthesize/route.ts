@@ -3,108 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const YEPAPI_BASE = "https://api.yepapi.com";
+const CHINAAPI_BASE = "https://api.chinaapi.ai/v1";
 
 interface SynthesizeBody {
   apiKey?: string;
-  prompt?: string;
+  input?: string;
   voice?: string;
   speed?: number;
-  outputFormat?: "mp3" | "pcm";
+  responseFormat?: "mp3" | "wav" | "opus" | "flac" | "pcm";
   model?: string;
   emotion?: string;
-}
-
-interface YepJobResponse {
-  data?: { jobId?: string };
-  error?: { message?: string; code?: string };
-}
-
-interface YepStatusResponse {
-  data?: {
-    status?: "pending" | "processing" | "completed" | "failed";
-    result?: {
-      audio?: { mimeType?: string; base64?: string };
-    };
-    error?: { message?: string };
-  };
-  error?: { message?: string };
-}
-
-async function submitJob(params: {
-  apiKey: string;
-  model: string;
-  prompt: string;
-  voice: string;
-  speed: number;
-  outputFormat: string;
-  emotion?: string;
-}): Promise<string> {
-  const options: Record<string, unknown> = {
-    voice: params.voice,
-    outputFormat: params.outputFormat,
-    speed: params.speed,
-  };
-  // Pass emotion only when explicitly set and not "auto"
-  if (params.emotion && params.emotion !== "auto") {
-    options.emotion = params.emotion;
-  }
-
-  const res = await fetch(`${YEPAPI_BASE}/v1/media/queue`, {
-    method: "POST",
-    headers: {
-      "x-api-key": params.apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: params.model,
-      prompt: params.prompt,
-      options,
-    }),
-  });
-
-  let json: YepJobResponse;
-  try {
-    json = (await res.json()) as YepJobResponse;
-  } catch {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `فشل إرسال المهمة (${res.status}). ${text.slice(0, 200)}`,
-    );
-  }
-
-  if (!res.ok || !json.data?.jobId) {
-    const msg =
-      json.error?.message ||
-      `فشل إرسال المهمة إلى YepAPI (${res.status})`;
-    throw new Error(msg);
-  }
-  return json.data.jobId;
-}
-
-async function pollStatus(
-  jobId: string,
-  apiKey: string,
-): Promise<YepStatusResponse["data"]> {
-  const res = await fetch(`${YEPAPI_BASE}/v1/media/status/${jobId}`, {
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
-
-  let json: YepStatusResponse;
-  try {
-    json = (await res.json()) as YepStatusResponse;
-  } catch {
-    const text = await res.text().catch(() => "");
-    throw new Error(`فشل قراءة حالة المهمة (${res.status}). ${text.slice(0, 200)}`);
-  }
-
-  if (!res.ok) {
-    throw new Error(
-      json.error?.message || `فشل قراءة حالة المهمة (${res.status})`,
-    );
-  }
-  return json.data;
+  instructions?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -119,104 +28,120 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = (body.apiKey || "").trim();
-  const prompt = (body.prompt || "").trim();
+  const input = (body.input || "").trim();
   const voice = (body.voice || "English_expressive_narrator").trim();
   const speed = typeof body.speed === "number" ? body.speed : 1;
-  const outputFormat = body.outputFormat === "pcm" ? "pcm" : "mp3";
-  const model = (body.model || "minimax/speech-2.8-hd").trim();
+  const responseFormat =
+    (body.responseFormat as "mp3" | "wav" | "opus" | "flac" | "pcm") || "mp3";
+  const model = (body.model || "speech-2.8-hd").trim();
   const emotion = (body.emotion || "").trim();
+  const instructions = (body.instructions || "").trim();
 
   if (!apiKey) {
     return NextResponse.json(
       {
         error:
-          "لم يتم ضبط مفتاح API. افتح الإعدادات وأدخل مفتاح YepAPI الخاص بك.",
+          "لم يتم ضبط مفتاح API. افتح الإعدادات وأدخل مفتاح ChinaAPI الخاص بك.",
       },
       { status: 400 },
     );
   }
-  if (!prompt) {
+  if (!input) {
     return NextResponse.json(
       { error: "الرجاء إدخال النص المراد تحويله إلى صوت." },
       { status: 400 },
     );
   }
-  if (Buffer.byteLength(prompt, "utf-8") > 50000) {
+  if (Buffer.byteLength(input, "utf-8") > 50000) {
     return NextResponse.json(
       { error: "تجاوز النص الحد الأقصى المسموح (50,000 بايت)." },
       { status: 400 },
     );
   }
 
+  // Build the OpenAI-compatible request body.
+  // ChinaAPI: { model, input, voice, response_format, speed, instructions }
+  const payload: Record<string, unknown> = {
+    model,
+    input,
+    voice,
+    response_format: responseFormat,
+    speed,
+  };
+  // Emotion direction: append to `instructions` when set (and not auto).
+  const emotionDirections: string[] = [];
+  if (emotion && emotion !== "auto") {
+    emotionDirections.push(`emotion: ${emotion}`);
+  }
+  if (instructions) {
+    emotionDirections.push(instructions);
+  }
+  if (emotionDirections.length > 0) {
+    payload.instructions = emotionDirections.join("; ");
+  }
+
   try {
-    const jobId = await submitJob({
-      apiKey,
-      model,
-      prompt,
-      voice,
-      speed,
-      outputFormat,
-      emotion,
+    const res = await fetch(`${CHINAAPI_BASE}/audio/speech`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
 
-    // Poll until done or timeout (~90s)
-    const deadline = Date.now() + 90_000;
-    let lastStatus: string = "pending";
-    let attempt = 0;
+    // ChinaAPI returns the audio bytes directly (Content-Type: audio/mpeg).
+    // On error it returns JSON.
+    const contentType = res.headers.get("content-type") || "";
 
-    while (Date.now() < deadline) {
-      attempt += 1;
-      const data = await pollStatus(jobId, apiKey);
-      lastStatus = data?.status || lastStatus;
-
-      if (data?.status === "completed") {
-        const audio = data?.result?.audio;
-        if (!audio?.base64) {
-          return NextResponse.json(
-            { error: "اكتملت المهمة لكن لم يتم استلام الصوت." },
-            { status: 502 },
-          );
+    if (!res.ok) {
+      let msg: string;
+      if (contentType.includes("application/json")) {
+        try {
+          const errJson = (await res.json()) as {
+            error?: { message?: string } | string;
+            message?: string;
+          };
+          if (typeof errJson.error === "string") msg = errJson.error;
+          else if (errJson.error?.message) msg = errJson.error.message;
+          else if (errJson.message) msg = errJson.message;
+          else msg = JSON.stringify(errJson);
+        } catch {
+          msg = `فشل التوليد (${res.status})`;
         }
-        return NextResponse.json({
-          jobId,
-          status: "completed",
-          audio: {
-            mimeType:
-              audio.mimeType ||
-              (outputFormat === "pcm" ? "audio/pcm" : "audio/mpeg"),
-            base64: audio.base64,
-          },
-        });
+      } else {
+        const text = await res.text().catch(() => "");
+        msg = text.slice(0, 300) || `فشل التوليد (${res.status})`;
       }
+      return NextResponse.json({ error: msg }, { status: res.status });
+    }
 
-      if (data?.status === "failed") {
-        return NextResponse.json(
-          {
-            error:
-              data?.error?.message || "فشلت المهمة على YepAPI.",
-            jobId,
-            status: "failed",
-          },
-          { status: 502 },
-        );
-      }
-
-      // Exponential-ish backoff capped at ~1.8s
-      await new Promise((r) =>
-        setTimeout(r, Math.min(1800, 600 + attempt * 200)),
+    if (!contentType.startsWith("audio/")) {
+      // Not the expected binary response
+      const text = await res.text().catch(() => "");
+      return NextResponse.json(
+        {
+          error:
+            "استجابة غير متوقعة من ChinaAPI. تحقق من المفتاح والنموذج. " +
+            text.slice(0, 200),
+        },
+        { status: 502 },
       );
     }
 
-    // Timed out — return jobId so the client can continue polling
-    return NextResponse.json(
-      {
-        jobId,
-        status: lastStatus,
-        error: "المهمة لا تزال قيد المعالجة. يمكنك متابعة الاستعلام عنها.",
-        timeout: true,
+    // Read binary audio and base64-encode for the client
+    const audioBuffer = Buffer.from(await res.arrayBuffer());
+    const base64 = audioBuffer.toString("base64");
+    const mimeType = contentType;
+
+    return NextResponse.json({
+      status: "completed",
+      audio: {
+        mimeType,
+        base64,
       },
-      { status: 202 },
-    );
+      bytes: audioBuffer.length,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "خطأ غير متوقع.";
     return NextResponse.json({ error: message }, { status: 500 });
