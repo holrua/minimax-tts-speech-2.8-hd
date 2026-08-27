@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getModel, DEFAULT_TTS_MODEL } from "@/lib/chinaapi-models";
+import { EMOTION_DIRECTIONS } from "@/lib/minimax-tags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,16 +79,21 @@ export async function POST(req: NextRequest) {
     response_format: responseFormat,
     speed,
   };
-  // Emotion direction: append to `instructions` when set (and not auto).
+  // Emotion: ChinaAPI's speech-2.8-hd honours emotion via the `instructions`
+  // field when written as a natural-language delivery brief (not a bare
+  // "emotion: happy" label). Send the rich brief, and also a best-effort
+  // top-level `emotion` field in case the gateway forwards it upstream.
   const emotionDirections: string[] = [];
   if (emotion && emotion !== "auto") {
-    emotionDirections.push(`emotion: ${emotion}`);
+    const brief = EMOTION_DIRECTIONS[emotion];
+    if (brief) emotionDirections.push(brief);
+    payload.emotion = emotion; // best-effort passthrough
   }
   if (instructions) {
     emotionDirections.push(instructions);
   }
   if (emotionDirections.length > 0) {
-    payload.instructions = emotionDirections.join("; ");
+    payload.instructions = emotionDirections.join(" ");
   }
 
   try {

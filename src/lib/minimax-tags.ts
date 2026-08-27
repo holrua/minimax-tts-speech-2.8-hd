@@ -143,14 +143,55 @@ export const SOUND_TAG_CATEGORIES: {
   { value: "music", label: "موسيقى" },
 ];
 
-// Pause tag for MiniMax
-export const PAUSE_TAG = "<#>";
+// Pause tag for MiniMax — MUST include a duration (in seconds, 0.01 to 99.99).
+// The bare "<#>" form is stripped by ChinaAPI; only "<#x.xx#>" is honoured.
+// e.g. "<#0.5#>" = half a second pause, "<#1.5#>" = one and a half seconds.
+export const PAUSE_TAG = "<#0.5#>";
+export const PAUSE_MIN = 0.01;
+export const PAUSE_MAX = 99.99;
+
+// Build a pause tag with a given duration (seconds).
+export function makePauseTag(seconds: number): string {
+  const clamped = Math.max(PAUSE_MIN, Math.min(PAUSE_MAX, seconds));
+  // Trim trailing zeros but keep at least one decimal place for clarity.
+  const formatted = Number(clamped.toFixed(2)).toString();
+  return `<#${formatted}#>`;
+}
+
+// Extract all pause durations present in a text (e.g. "<#1.5#>" -> 1.5).
+export const PAUSE_TAG_REGEX = /<#(\d+(?:\.\d+)?)#>/g;
+export function extractPauseDurations(text: string): number[] {
+  const out: number[] = [];
+  for (const m of text.matchAll(PAUSE_TAG_REGEX)) {
+    out.push(Number(m[1]));
+  }
+  return out;
+}
+
+// Emotion → rich natural-language delivery direction.
+// ChinaAPI's speech-2.8-hd honours emotion through the `instructions` field
+// when it is written as a natural-language delivery brief (not a bare label).
+export const EMOTION_DIRECTIONS: Record<string, string> = {
+  auto: "",
+  neutral: "Speak in a calm, neutral, matter-of-fact tone.",
+  happy: "Speak in a happy, cheerful, upbeat, joyful tone.",
+  sad: "Speak in a sad, melancholic, subdued, sorrowful tone.",
+  angry: "Speak in an angry, irritated, sharp, aggressive tone.",
+  fearful: "Speak in a fearful, anxious, trembling, worried tone.",
+  disgusted: "Speak in a disgusted, contemptuous, repulsed tone.",
+  surprised: "Speak in a surprised, astonished, amazed tone.",
+  calm: "Speak in a calm, soothing, relaxed, steady tone.",
+};
 
 // Examples demonstrating advanced syntax
 export const ADVANCED_EXAMPLES: { title: string; text: string }[] = [
   {
-    title: "مشاعر + إيقاف مؤقت",
-    text: "مرحبًا بك <#> يسعدني أن أراك اليوم!",
+    title: "إيقاف مؤقت (نصف ثانية)",
+    text: "مرحبًا بك <#0.5#> يسعدني أن أراك اليوم!",
+  },
+  {
+    title: "إيقاف مؤقت طويل (ثانية ونصف)",
+    text: "فكّرت قليلًا <#1.5#> ثم قرّرت المواصلة.",
   },
   {
     title: "مؤثر صوتي (ضحك)",
@@ -158,6 +199,6 @@ export const ADVANCED_EXAMPLES: { title: string; text: string }[] = [
   },
   {
     title: "مزيج كامل",
-    text: "في البداية كنت مترددًا (sigh) <#> لكنني الآن متحمس جدًا (cheers)!",
+    text: "في البداية كنت مترددًا (sigh) <#0.8#> لكنني الآن متحمس جدًا (cheers)!",
   },
 ];

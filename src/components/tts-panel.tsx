@@ -62,7 +62,8 @@ import {
   EMOTION_PRESETS,
   SOUND_TAG_PRESETS,
   SOUND_TAG_CATEGORIES,
-  PAUSE_TAG,
+  makePauseTag,
+  extractPauseDurations,
   ADVANCED_EXAMPLES,
   type SoundTagPreset,
 } from "@/lib/minimax-tags";
@@ -129,7 +130,7 @@ export function TtsPanel({
 
   // Count inline tags present in text
   const pauseCount = React.useMemo(
-    () => (text.match(/<#>/g) || []).length,
+    () => extractPauseDurations(text).length,
     [text],
   );
   const soundTagCount = React.useMemo(
@@ -303,17 +304,8 @@ export function TtsPanel({
             <span className="h-5 w-px bg-border/60" />
 
             {/* Pause insert */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertAtCursor(PAUSE_TAG)}
-              className="h-8 gap-1.5 text-xs"
-              title="إدراج علامة إيقاف مؤقت"
-            >
-              <Pause className="h-3.5 w-3.5" />
-              إيقاف <span className="font-mono text-[10px] text-muted-foreground">&lt;#&gt;</span>
-            </Button>
+            {/* Pause picker with customisable duration */}
+            <PausePicker onInsert={(tag) => insertAtCursor(tag)} />
 
             {/* Sound tag picker */}
             <SoundTagPicker onInsert={insertAtCursor} />
@@ -374,13 +366,13 @@ export function TtsPanel({
                     icon={<Heart className="h-4 w-4 text-rose-500" />}
                     title="المشاعر (Emotion)"
                     syntax="يُختار من القائمة أعلاه"
-                    desc="يتحكم بنبرة الصوت: سعيد، حزين، غاضب..."
+                    desc="يُرسَل كوصف طبيعي للنبرة (تعليمات باللغة الإنجليزية) فيؤثر في أداء القراءة"
                   />
                   <SyntaxCard
                     icon={<Pause className="h-4 w-4 text-primary" />}
                     title="إيقاف مؤقت"
-                    syntax="<#>"
-                    desc="يضيف وقفة قصيرة عند هذه النقطة في النص"
+                    syntax="<#0.5#>"
+                    desc="يضيف وقفة بالمدة المحددة (بالثواني). الشكل <#> المختصر لا يُقرأ — يجب ذكر المدة."
                     mono
                   />
                   <SyntaxCard
@@ -700,6 +692,87 @@ function SyntaxCard({
       </code>
       <p className="text-[11px] text-muted-foreground leading-relaxed">{desc}</p>
     </div>
+  );
+}
+
+function PausePicker({
+  onInsert,
+}: {
+  onInsert: (tag: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [duration, setDuration] = React.useState(0.5);
+
+  const presets = [0.3, 0.5, 1, 1.5, 2, 3];
+
+  const handleInsert = (secs: number) => {
+    onInsert(makePauseTag(secs));
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+        >
+          <Pause className="h-3.5 w-3.5" />
+          إيقاف مؤقت
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-3">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <Pause className="h-3.5 w-3.5 text-primary" />
+            مدة الإيقاف المؤقت
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5">
+            {presets.map((p) => (
+              <button
+                key={p}
+                onClick={() => handleInsert(p)}
+                className="rounded-md border border-border/50 px-2 py-1.5 text-xs hover:border-primary/50 hover:bg-accent/40 transition-colors font-mono"
+              >
+                {p}s
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">مخصّص</span>
+              <span className="font-mono font-semibold">{duration.toFixed(2)}s</span>
+            </div>
+            <Slider
+              dir="ltr"
+              value={[duration]}
+              min={0.01}
+              max={5}
+              step={0.01}
+              onValueChange={(v) => setDuration(v[0])}
+              aria-label="مدة الإيقاف المؤقت"
+            />
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={() => handleInsert(duration)}
+            >
+              إدراج <span className="font-mono">{makePauseTag(duration)}</span>
+            </Button>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            يجب تحديد المدة بالصيغة <code className="font-mono">&lt;#ثانية#&gt;</code> —
+            النموذج لا يقرأ الشكل المختصر <code className="font-mono">&lt;#&gt;</code>.
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
