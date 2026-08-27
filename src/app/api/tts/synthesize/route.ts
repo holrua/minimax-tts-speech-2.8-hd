@@ -12,6 +12,7 @@ interface SynthesizeBody {
   speed?: number;
   outputFormat?: "mp3" | "pcm";
   model?: string;
+  emotion?: string;
 }
 
 interface YepJobResponse {
@@ -37,7 +38,18 @@ async function submitJob(params: {
   voice: string;
   speed: number;
   outputFormat: string;
+  emotion?: string;
 }): Promise<string> {
+  const options: Record<string, unknown> = {
+    voice: params.voice,
+    outputFormat: params.outputFormat,
+    speed: params.speed,
+  };
+  // Pass emotion only when explicitly set and not "auto"
+  if (params.emotion && params.emotion !== "auto") {
+    options.emotion = params.emotion;
+  }
+
   const res = await fetch(`${YEPAPI_BASE}/v1/media/queue`, {
     method: "POST",
     headers: {
@@ -47,11 +59,7 @@ async function submitJob(params: {
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
-      options: {
-        voice: params.voice,
-        outputFormat: params.outputFormat,
-        speed: params.speed,
-      },
+      options,
     }),
   });
 
@@ -116,6 +124,7 @@ export async function POST(req: NextRequest) {
   const speed = typeof body.speed === "number" ? body.speed : 1;
   const outputFormat = body.outputFormat === "pcm" ? "pcm" : "mp3";
   const model = (body.model || "minimax/speech-2.8-hd").trim();
+  const emotion = (body.emotion || "").trim();
 
   if (!apiKey) {
     return NextResponse.json(
@@ -147,6 +156,7 @@ export async function POST(req: NextRequest) {
       voice,
       speed,
       outputFormat,
+      emotion,
     });
 
     // Poll until done or timeout (~90s)

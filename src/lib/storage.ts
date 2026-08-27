@@ -38,6 +38,7 @@ export interface HistoryItem {
   voiceLabel: string;
   speed: number;
   format: "mp3" | "pcm";
+  emotion?: string;
   audioBase64: string;
   mimeType: string;
   createdAt: number;

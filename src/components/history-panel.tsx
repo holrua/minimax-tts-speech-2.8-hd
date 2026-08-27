@@ -10,6 +10,7 @@ import {
   Clock,
   Volume2,
   Mic2,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import {
   clearHistory,
   type HistoryItem,
 } from "@/lib/storage";
+import { EMOTION_PRESETS } from "@/lib/minimax-tags";
 
 interface HistoryPanelProps {
   refreshSignal?: number;
@@ -168,6 +170,15 @@ export function HistoryPanel({ refreshSignal }: HistoryPanelProps) {
                         <Badge variant="outline" className="text-xs uppercase">
                           {item.format}
                         </Badge>
+                        {item.emotion && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs gap-1 text-rose-500 border-rose-500/30"
+                          >
+                            <Heart className="h-3 w-3" />
+                            {EMOTION_PRESETS.find((e) => e.value === item.emotion)?.label || item.emotion}
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {relTime(item.createdAt)}
