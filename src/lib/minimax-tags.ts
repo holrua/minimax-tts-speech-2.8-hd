@@ -66,32 +66,40 @@ export const EMOTION_PRESETS: EmotionPreset[] = [
     description: "نبرة مهدئة وثابتة",
     emoji: "🧘",
   },
+  {
+    value: "fluent",
+    label: "طليق",
+    description: "أداء سلس وطبيعي بدون نبرة عاطفية محددة",
+    emoji: "🗣️",
+  },
 ];
 
 export interface SoundTagPreset {
-  tag: string; // the inline tag e.g. "(laughter)"
+  tag: string; // the inline tag e.g. "(laughs)"
   label: string;
   category: "human" | "crowd" | "nature" | "object" | "animal" | "music";
+  official?: boolean; // true for the 8 officially documented MiniMax interjections
 }
 
-// Curated MiniMax-compatible sound effect tags.
+// MiniMax Speech 2.8 officially supports these 8 interjection tags (verb form).
+// Non-official tags may still work but with weaker/weird results.
+// See: https://fal.ai/models/fal-ai/minimax/speech-2.8-hd/api
 export const SOUND_TAG_PRESETS: SoundTagPreset[] = [
-  // Human sounds
-  { tag: "(laughter)", label: "ضحك", category: "human" },
-  { tag: "(giggle)", label: "قهقهة", category: "human" },
-  { tag: "(chuckle)", label: "ضحكة خافتة", category: "human" },
-  { tag: "(sigh)", label: "تنهيدة", category: "human" },
-  { tag: "(cough)", label: "سعال", category: "human" },
-  { tag: "(sneeze)", label: "عطس", category: "human" },
-  { tag: "(yawn)", label: "تثاؤب", category: "human" },
-  { tag: "(cry)", label: "بكاء", category: "human" },
-  { tag: "(sob)", label: "نحيب", category: "human" },
-  { tag: "(gasp)", label: "لهاث", category: "human" },
-  { tag: "(groan)", label: "أنين", category: "human" },
-  { tag: "(moan)", label: "تأوه", category: "human" },
-  { tag: "(scream)", label: "صراخ", category: "human" },
-  { tag: "(whisper)", label: "همس", category: "human" },
-  { tag: "(sniff)", label: "شم", category: "human" },
+  // Official MiniMax interjections (verb form — these produce the strongest effect)
+  { tag: "(laughs)", label: "ضحك", category: "human", official: true },
+  { tag: "(sighs)", label: "تنهيدة", category: "human", official: true },
+  { tag: "(coughs)", label: "سعال", category: "human", official: true },
+  { tag: "(clears throat)", label: "تخليص الحلق", category: "human", official: true },
+  { tag: "(gasps)", label: "لهاث", category: "human", official: true },
+  { tag: "(sniffs)", label: "شم", category: "human", official: true },
+  { tag: "(groans)", label: "أنين", category: "human", official: true },
+  { tag: "(yawns)", label: "تثاؤب", category: "human", official: true },
+
+  // Additional commonly-supported tags (weaker effect)
+  { tag: "(chuckles)", label: "ضحكة خافتة", category: "human" },
+  { tag: "(cries)", label: "بكاء", category: "human" },
+  { tag: "(screams)", label: "صراخ", category: "human" },
+  { tag: "(whispers)", label: "همس", category: "human" },
 
   // Crowd / social
   { tag: "(applause)", label: "تصفيق", category: "crowd" },
@@ -168,19 +176,21 @@ export function extractPauseDurations(text: string): number[] {
   return out;
 }
 
-// Emotion → rich natural-language delivery direction.
-// ChinaAPI's speech-2.8-hd honours emotion through the `instructions` field
-// when it is written as a natural-language delivery brief (not a bare label).
+// Emotion → delivery direction string sent to ChinaAPI.
+// ChinaAPI's speech-2.8-hd honours emotion via the `instructions` field when
+// written as "emotion: <value>", AND via the native `voice_setting.emotion`
+// field. We send both for robustness (see the synthesize route).
 export const EMOTION_DIRECTIONS: Record<string, string> = {
   auto: "",
-  neutral: "Speak in a calm, neutral, matter-of-fact tone.",
-  happy: "Speak in a happy, cheerful, upbeat, joyful tone.",
-  sad: "Speak in a sad, melancholic, subdued, sorrowful tone.",
-  angry: "Speak in an angry, irritated, sharp, aggressive tone.",
-  fearful: "Speak in a fearful, anxious, trembling, worried tone.",
-  disgusted: "Speak in a disgusted, contemptuous, repulsed tone.",
-  surprised: "Speak in a surprised, astonished, amazed tone.",
-  calm: "Speak in a calm, soothing, relaxed, steady tone.",
+  neutral: "neutral",
+  happy: "happy",
+  sad: "sad",
+  angry: "angry",
+  fearful: "fearful",
+  disgusted: "disgusted",
+  surprised: "surprised",
+  calm: "happy, calm",
+  fluent: "neutral",
 };
 
 // Examples demonstrating advanced syntax
@@ -195,10 +205,10 @@ export const ADVANCED_EXAMPLES: { title: string; text: string }[] = [
   },
   {
     title: "مؤثر صوتي (ضحك)",
-    text: "هذا الموقف مضحك حقًا (laughter) لا أستطيع التوقف!",
+    text: "هذا الموقف مضحك حقًا (laughs) لا أستطيع التوقف!",
   },
   {
     title: "مزيج كامل",
-    text: "في البداية كنت مترددًا (sigh) <#0.8#> لكنني الآن متحمس جدًا (cheers)!",
+    text: "في البداية كنت مترددًا (sighs) <#0.8#> لكنني الآن متحمس جدًا (cheers)!",
   },
 ];

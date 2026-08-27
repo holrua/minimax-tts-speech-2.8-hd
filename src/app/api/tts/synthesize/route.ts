@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Build the OpenAI-compatible request body.
-  // ChinaAPI: { model, input, voice, response_format, speed, instructions }
+  // ChinaAPI: { model, input, voice, response_format, speed, instructions, voice_setting }
   const payload: Record<string, unknown> = {
     model,
     input,
@@ -79,21 +79,23 @@ export async function POST(req: NextRequest) {
     response_format: responseFormat,
     speed,
   };
-  // Emotion: ChinaAPI's speech-2.8-hd honours emotion via the `instructions`
-  // field when written as a natural-language delivery brief (not a bare
-  // "emotion: happy" label). Send the rich brief, and also a best-effort
-  // top-level `emotion` field in case the gateway forwards it upstream.
+  // Emotion: verified empirically that ChinaAPI forwards BOTH:
+  //   1. `voice_setting.emotion` (native MiniMax shape) — produces the
+  //      strongest, most reliable emotional delivery.
+  //   2. `instructions: "emotion: <value>"` — also honoured by the gateway.
+  // We send both so the emotion lands even if only one path is active upstream.
   const emotionDirections: string[] = [];
   if (emotion && emotion !== "auto") {
-    const brief = EMOTION_DIRECTIONS[emotion];
-    if (brief) emotionDirections.push(brief);
-    payload.emotion = emotion; // best-effort passthrough
+    const brief = EMOTION_DIRECTIONS[emotion] || emotion;
+    emotionDirections.push(`emotion: ${brief}`);
+    payload.voice_setting = { emotion: brief };
+    payload.emotion = brief; // best-effort top-level passthrough
   }
   if (instructions) {
     emotionDirections.push(instructions);
   }
   if (emotionDirections.length > 0) {
-    payload.instructions = emotionDirections.join(" ");
+    payload.instructions = emotionDirections.join("; ");
   }
 
   try {

@@ -134,7 +134,11 @@ export function TtsPanel({
     [text],
   );
   const soundTagCount = React.useMemo(
-    () => (text.match(/\((?:laughter|giggle|chuckle|sigh|cough|sneeze|yawn|cry|sob|gasp|groan|moan|scream|whisper|sniff|applause|cheers|crowd|booing|rain|wind|thunder|ocean|fire|storm|footsteps|door|phone|bell|clock|car|train|plane|bird|dog|cat|horse|rooster|music|drum|guitar|piano)\)/g) || []).length,
+    // Match any inline sound tag of the form "(word)" or "(word word)"; we
+    // exclude obvious sentence punctuation-only parentheses by requiring word
+    // characters inside. This matches both official tags like "(laughs)",
+    // "(clears throat)" and the older noun forms "(laughter)".
+    () => (text.match(/\((?:[a-z][a-z -]{1,30})\)/gi) || []).length,
     [text],
   );
 
@@ -378,8 +382,8 @@ export function TtsPanel({
                   <SyntaxCard
                     icon={<Music2 className="h-4 w-4 text-violet-500" />}
                     title="مؤثر صوتي"
-                    syntax="(laughter)"
-                    desc="يضيف صوتًا مثل الضحك أو التصفيق"
+                    syntax="(laughs)"
+                    desc="يضيف مؤثرًا صوتيًا رسميًا (مثل الضحك أو السعال). استخدم صيغة الفعل: (laughs), (sighs), (coughs), (yawns)…"
                     mono
                   />
                 </div>
@@ -874,7 +878,14 @@ function SoundTagPicker({
                   onClick={() => handleSelect(s.tag)}
                   className="flex flex-col items-start gap-0.5 rounded-md border border-border/50 px-2 py-1.5 text-start hover:border-primary/50 hover:bg-accent/40 transition-colors"
                 >
-                  <span className="text-xs font-medium">{s.label}</span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-xs font-medium">{s.label}</span>
+                    {s.official && (
+                      <span className="text-[9px] px-1 py-px rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        رسمي
+                      </span>
+                    )}
+                  </span>
                   <span className="text-[10px] text-muted-foreground font-mono" dir="ltr">
                     {s.tag}
                   </span>
