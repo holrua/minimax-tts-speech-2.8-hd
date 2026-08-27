@@ -16,7 +16,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  defaultVoice: "English_expressive_narrator",
+  defaultVoice: "Arabic_CalmWoman",
   speed: 1,
   outputFormat: "mp3",
   model: "speech-2.8-hd",

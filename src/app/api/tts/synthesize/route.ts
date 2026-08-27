@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const apiKey = (body.apiKey || "").trim();
   const input = (body.input || "").trim();
-  const voice = (body.voice || "English_expressive_narrator").trim();
+  const voice = (body.voice || "Arabic_CalmWoman").trim();
   const speed = typeof body.speed === "number" ? body.speed : 1;
   const responseFormat =
     (body.responseFormat as "mp3" | "wav" | "opus" | "flac" | "pcm") || "mp3";

@@ -96,6 +96,29 @@ export const VOICE_PRESETS: VoicePreset[] = [
     category: "english",
     gender: "female",
   },
+
+  // ---- Arabic voices ----
+  {
+    id: "Arabic_CalmWoman",
+    label: "امرأة هادئة (عربي)",
+    description: "صوت أنثوي عربي دافئ وناعم ومخملي — مناسب للروايات والمحتوى الهادئ",
+    category: "arabic",
+    gender: "female",
+  },
+  {
+    id: "Arabic_FriendlyGuy",
+    label: "شاب ودود (عربي)",
+    description: "صوت ذكوري عربي ناعم وعميق ومصقول — مناسب للمحتوى العام والعروض",
+    category: "arabic",
+    gender: "male",
+  },
+  {
+    id: "moss_audio_5fea44c8-a028-11f1-8900-9edb4a3ef07d",
+    label: "حسين (عربي)",
+    description: "صوت «حسين» العربي — صوت مستنسخ مخصص عبر MiniMax voice cloning",
+    category: "arabic",
+    gender: "male",
+  },
 ];
 
 export const VOICE_CATEGORIES: { value: VoiceCategory; label: string }[] = [

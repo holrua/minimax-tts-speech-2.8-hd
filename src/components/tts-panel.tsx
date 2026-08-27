@@ -83,8 +83,8 @@ export function TtsPanel({
 }: TtsPanelProps) {
   const { toast } = useToast();
   const [text, setText] = React.useState("");
-  const [voice, setVoice] = React.useState("English_expressive_narrator");
-  const [category, setCategory] = React.useState<VoiceCategory>("english");
+  const [voice, setVoice] = React.useState("Arabic_CalmWoman");
+  const [category, setCategory] = React.useState<VoiceCategory>("arabic");
   const [speed, setSpeed] = React.useState(1);
   const [format, setFormat] = React.useState<"mp3" | "wav" | "opus" | "flac" | "pcm">("mp3");
   const [emotion, setEmotion] = React.useState("auto");
@@ -109,6 +109,10 @@ export function TtsPanel({
     setVoice(s.defaultVoice);
     setSpeed(s.speed);
     setFormat(s.outputFormat);
+    // Sync the category dropdown to the saved voice's category so the right
+    // list shows up. Falls back to "arabic" (the user's primary language).
+    const preset = VOICE_PRESETS.find((v) => v.id === s.defaultVoice);
+    setCategory(preset?.category ?? "arabic");
     // Auto-fix: if the saved model is not a valid ChinaAPI model (e.g. a stale
     // YepAPI id like "minimax/speech-2.8-hd"), reset to the default and persist.
     const validModel = getModel(s.model) ? s.model : DEFAULT_TTS_MODEL;
@@ -198,7 +202,7 @@ export function TtsPanel({
       });
       return;
     }
-    const finalVoice = (useCustomId ? customId.trim() : voice) || "English_expressive_narrator";
+    const finalVoice = (useCustomId ? customId.trim() : voice) || "Arabic_CalmWoman";
 
     setLoading(true);
     try {
