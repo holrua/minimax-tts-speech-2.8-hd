@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getModel, DEFAULT_TTS_MODEL } from "@/lib/chinaapi-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +34,18 @@ export async function POST(req: NextRequest) {
   const speed = typeof body.speed === "number" ? body.speed : 1;
   const responseFormat =
     (body.responseFormat as "mp3" | "wav" | "opus" | "flac" | "pcm") || "mp3";
-  const model = (body.model || "speech-2.8-hd").trim();
+  let model = (body.model || DEFAULT_TTS_MODEL).trim();
   const emotion = (body.emotion || "").trim();
   const instructions = (body.instructions || "").trim();
+
+  // Normalize: strip a stale "minimax/" or "openai/" prefix, then validate.
+  // e.g. "minimax/speech-2.8-hd" (old YepAPI id) -> "speech-2.8-hd".
+  if (model.includes("/") && !getModel(model)) {
+    const suffix = model.split("/").pop();
+    if (suffix && getModel(suffix)) model = suffix;
+  }
+  // If still invalid, fall back to the default model so the request keeps working.
+  if (!getModel(model)) model = DEFAULT_TTS_MODEL;
 
   if (!apiKey) {
     return NextResponse.json(
@@ -112,6 +122,14 @@ export async function POST(req: NextRequest) {
       } else {
         const text = await res.text().catch(() => "");
         msg = text.slice(0, 300) || `فشل التوليد (${res.status})`;
+      }
+      // Translate the most common ChinaAPI upstream errors into clear guidance.
+      if (/no available channel/i.test(msg)) {
+        msg =
+          `لا توجد قناة متاحة لهذا النموذج (${model}). قد يكون معرّف النموذج غير صحيح أو غير مفعّل لحسابك. ` +
+          `جرّب نموذجًا آخر من القائمة (مثل speech-2.8-hd).`;
+      } else if (/model not found|invalid model|unknown model/i.test(msg)) {
+        msg = `النموذج "${model}" غير معروف على ChinaAPI. اختر نموذجًا من القائمة.`;
       }
       return NextResponse.json({ error: msg }, { status: res.status });
     }

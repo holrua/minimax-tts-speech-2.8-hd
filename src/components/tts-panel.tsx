@@ -48,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getApiKey,
   getSettings,
+  setSettings,
   addHistory,
   utf8ByteLength,
   estimateCost,
@@ -56,7 +57,7 @@ import {
   type HistoryItem,
 } from "@/lib/storage";
 import { VOICE_PRESETS, VOICE_CATEGORIES, type VoiceCategory } from "@/lib/voices";
-import { TTS_MODELS, getModel } from "@/lib/chinaapi-models";
+import { TTS_MODELS, getModel, DEFAULT_TTS_MODEL } from "@/lib/chinaapi-models";
 import {
   EMOTION_PRESETS,
   SOUND_TAG_PRESETS,
@@ -107,7 +108,13 @@ export function TtsPanel({
     setVoice(s.defaultVoice);
     setSpeed(s.speed);
     setFormat(s.outputFormat);
-    setModel(s.model);
+    // Auto-fix: if the saved model is not a valid ChinaAPI model (e.g. a stale
+    // YepAPI id like "minimax/speech-2.8-hd"), reset to the default and persist.
+    const validModel = getModel(s.model) ? s.model : DEFAULT_TTS_MODEL;
+    if (validModel !== s.model) {
+      setSettings({ ...s, model: validModel });
+    }
+    setModel(validModel);
     setHasKey(!!getApiKey());
     setCustomVoicesState(getCustomVoices().map((v) => ({ id: v.id, name: v.name })));
   }, [refreshSignal]);
