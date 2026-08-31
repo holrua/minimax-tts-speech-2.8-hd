@@ -75,3 +75,4 @@ server.log
 Thumbs.db
 .vscode/
 .idea/
+tool-results/
