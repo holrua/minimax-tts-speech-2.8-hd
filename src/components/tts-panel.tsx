@@ -49,6 +49,7 @@ import {
   getApiKey,
   getSettings,
   setSettings,
+  DEFAULT_SETTINGS,
   addHistory,
   utf8ByteLength,
   estimateCost,
@@ -124,7 +125,16 @@ export function TtsPanel({
   // Load settings once on mount and when refresh signal changes
   React.useEffect(() => {
     const s = getSettings();
-    setVoice(s.defaultVoice);
+    // Auto-fix: if the saved default voice is no longer in the catalog (e.g.
+    // a removed cloned-voice preset), reset to the Arabic default and persist.
+    const savedVoicePreset = VOICE_PRESETS.find((v) => v.id === s.defaultVoice);
+    const validVoice = savedVoicePreset
+      ? s.defaultVoice
+      : DEFAULT_SETTINGS.defaultVoice;
+    if (validVoice !== s.defaultVoice) {
+      setSettings({ ...s, defaultVoice: validVoice });
+    }
+    setVoice(validVoice);
     setSpeed(s.speed);
     setVol(s.vol);
     setPitch(s.pitch);
@@ -136,7 +146,7 @@ export function TtsPanel({
     setSoundEffects(s.soundEffects || "none");
     // Sync the category dropdown to the saved voice's category so the right
     // list shows up. Falls back to "arabic" (the user's primary language).
-    const preset = VOICE_PRESETS.find((v) => v.id === s.defaultVoice);
+    const preset = VOICE_PRESETS.find((v) => v.id === validVoice);
     setCategory(preset?.category ?? "arabic");
     // Auto-fix stale model ids (e.g. old "speech-2.8-hd" / "minimax/speech-2.8-hd")
     // to the current GMICloud default.

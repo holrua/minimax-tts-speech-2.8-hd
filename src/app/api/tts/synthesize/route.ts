@@ -75,6 +75,15 @@ async function submitJob(params: {
     else if (json.error?.message) msg = json.error.message;
     else if (json.message) msg = json.message;
     else msg = `فشل إرسال المهمة إلى GMICloud (${res.status})`;
+    // Translate common GMICloud upstream errors into clear Arabic guidance.
+    if (/no access to this voice_id|don't have access to this voice|voice_id.*not.*found/i.test(msg)) {
+      msg =
+        `لا يمكن استخدام هذا الصوت (voice_id). معرّفات الأصوات المستنسخة تخص حساب المُنشئ فقط — ` +
+        `لا يمكنك استخدام صوت مستنسخ من حساب آخر. جرّب صوتًا من القائمة (مثل «امرأة هادئة») ` +
+        `أو استنسخ صوتًا جديدًا على حسابك وأدخل معرّفه في قسم «معرّف مخصص».`;
+    } else if (/invalid voice_id|voice_id.*invalid/i.test(msg)) {
+      msg = `معرّف الصوت غير صالح. اختر صوتًا من القائمة أو تأكد من صحة المعرّف المخصص.`;
+    }
     throw new Error(msg);
   }
   return json.request_id;
