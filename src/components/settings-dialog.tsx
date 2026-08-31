@@ -40,7 +40,7 @@ import {
   type AppSettings,
 } from "@/lib/storage";
 import { VOICE_PRESETS } from "@/lib/voices";
-import { TTS_MODELS } from "@/lib/chinaapi-models";
+import { TTS_MODELS } from "@/lib/gmicloud-models";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -70,10 +70,10 @@ export function SettingsDialog({
 
   const handleSave = () => {
     const trimmed = keyInput.trim();
-    if (trimmed && !trimmed.startsWith("sk-")) {
+    if (trimmed && !trimmed.startsWith("eyJ")) {
       toast({
         title: "تنبيه",
-        description: "مفتاح ChinaAPI يبدأ عادةً بـ sk- . تأكد من صحة المفتاح.",
+        description: "مفتاح GMICloud عبارة عن رمز JWT يبدأ عادةً بـ eyJ . تأكد من صحة المفتاح.",
         variant: "destructive",
       });
     }
@@ -105,7 +105,7 @@ export function SettingsDialog({
           </DialogTitle>
           <DialogDescription>
             تُحفظ كل البيانات في متصفحك فقط — لا يوجد تسجيل دخول ولا حساب.
-            مفتاحك لا يُرسل إلا إلى خوادم ChinaAPI عبر واجهتنا الخلفية.
+            مفتاحك لا يُرسل إلا إلى خوادم GMICloud عبر واجهتنا الخلفية.
           </DialogDescription>
         </DialogHeader>
 
@@ -114,7 +114,7 @@ export function SettingsDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="apikey" className="text-base font-semibold">
-                مفتاح ChinaAPI
+                مفتاح GMICloud
               </Label>
               {hasKey ? (
                 <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
@@ -131,7 +131,7 @@ export function SettingsDialog({
                 id="apikey"
                 type={showKey ? "text" : "password"}
                 dir="ltr"
-                placeholder="sk-..."
+                placeholder="eyJhbGciOi..."
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 className="pe-10 font-mono text-sm"
@@ -146,16 +146,16 @@ export function SettingsDialog({
               </button>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              احصل على مفتاحك من لوحة تحكم YepAPI ثم الصقه هنا. يُستخدم المفتاح
+              احصل على مفتاحك من لوحة تحكم GMICloud ثم الصقه هنا. يُستخدم المفتاح
               لتوقيع طلبات تحويل النص إلى صوت.
             </p>
             <a
-              href="https://yepapi.com"
+              href="https://console.gmicloud.ai"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              لوحة تحكم YepAPI <ExternalLink className="h-3 w-3" />
+              لوحة تحكم GMICloud <ExternalLink className="h-3 w-3" />
             </a>
           </div>
 

@@ -57,7 +57,17 @@ import {
   type HistoryItem,
 } from "@/lib/storage";
 import { VOICE_PRESETS, VOICE_CATEGORIES, type VoiceCategory } from "@/lib/voices";
-import { TTS_MODELS, getModel, DEFAULT_TTS_MODEL } from "@/lib/chinaapi-models";
+import {
+  TTS_MODELS,
+  getModel,
+  DEFAULT_TTS_MODEL,
+  SOUND_EFFECTS,
+  SAMPLE_RATES,
+  BITRATES,
+  CHANNELS,
+  LANGUAGE_BOOSTS,
+  type GmiFormat,
+} from "@/lib/gmicloud-models";
 import {
   EMOTION_PRESETS,
   SOUND_TAG_PRESETS,
@@ -86,9 +96,17 @@ export function TtsPanel({
   const [voice, setVoice] = React.useState("Arabic_CalmWoman");
   const [category, setCategory] = React.useState<VoiceCategory>("arabic");
   const [speed, setSpeed] = React.useState(1);
-  const [format, setFormat] = React.useState<"mp3" | "wav" | "opus" | "flac" | "pcm">("mp3");
+  const [vol, setVol] = React.useState(1);
+  const [pitch, setPitch] = React.useState(0);
+  const [format, setFormat] = React.useState<GmiFormat>("mp3");
   const [emotion, setEmotion] = React.useState("auto");
-  const [model, setModel] = React.useState("speech-2.8-hd");
+  const [languageBoost, setLanguageBoost] = React.useState("auto");
+  const [sampleRate, setSampleRate] = React.useState("32000");
+  const [bitrate, setBitrate] = React.useState("128000");
+  const [channel, setChannel] = React.useState("2");
+  const [soundEffects, setSoundEffects] = React.useState("none");
+  const [model, setModel] = React.useState(DEFAULT_TTS_MODEL);
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [useCustomId, setUseCustomId] = React.useState(false);
   const [customId, setCustomId] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -108,13 +126,20 @@ export function TtsPanel({
     const s = getSettings();
     setVoice(s.defaultVoice);
     setSpeed(s.speed);
+    setVol(s.vol);
+    setPitch(s.pitch);
     setFormat(s.outputFormat);
+    setLanguageBoost(s.languageBoost);
+    setSampleRate(s.audioSampleRate);
+    setBitrate(s.bitrate);
+    setChannel(s.channel);
+    setSoundEffects(s.soundEffects || "none");
     // Sync the category dropdown to the saved voice's category so the right
     // list shows up. Falls back to "arabic" (the user's primary language).
     const preset = VOICE_PRESETS.find((v) => v.id === s.defaultVoice);
     setCategory(preset?.category ?? "arabic");
-    // Auto-fix: if the saved model is not a valid ChinaAPI model (e.g. a stale
-    // YepAPI id like "minimax/speech-2.8-hd"), reset to the default and persist.
+    // Auto-fix stale model ids (e.g. old "speech-2.8-hd" / "minimax/speech-2.8-hd")
+    // to the current GMICloud default.
     const validModel = getModel(s.model) ? s.model : DEFAULT_TTS_MODEL;
     if (validModel !== s.model) {
       setSettings({ ...s, model: validModel });
@@ -180,7 +205,7 @@ export function TtsPanel({
       setHasKey(false);
       toast({
         title: "مفتاح API مفقود",
-        description: "افتح الإعدادات وأدخل مفتاح ChinaAPI أولًا.",
+        description: "افتح الإعدادات وأدخل مفتاح GMICloud أولًا.",
         variant: "destructive",
       });
       onOpenSettings();
@@ -211,12 +236,19 @@ export function TtsPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey: key,
-          input: text,
-          voice: finalVoice,
+          text,
+          voiceId: finalVoice,
           speed,
-          responseFormat: format,
-          model,
+          vol,
+          pitch,
           emotion,
+          languageBoost,
+          format,
+          audioSampleRate: sampleRate,
+          bitrate,
+          channel,
+          soundEffects: soundEffects === "none" ? "" : soundEffects,
+          model,
         }),
       });
       const data = await res.json();
@@ -599,9 +631,45 @@ export function TtsPanel({
               value={[speed]}
               min={0.5}
               max={2}
-              step={0.05}
+              step={0.1}
               onValueChange={(v) => setSpeed(v[0])}
               aria-label="سرعة التشغيل"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">مستوى الصوت</Label>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {vol.toFixed(1)}
+              </Badge>
+            </div>
+            <Slider
+              dir="ltr"
+              value={[vol]}
+              min={0}
+              max={10}
+              step={0.1}
+              onValueChange={(v) => setVol(v[0])}
+              aria-label="مستوى الصوت"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">طبقة الصوت (Pitch)</Label>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {pitch}
+              </Badge>
+            </div>
+            <Slider
+              dir="ltr"
+              value={[pitch]}
+              min={-12}
+              max={12}
+              step={1}
+              onValueChange={(v) => setPitch(v[0])}
+              aria-label="طبقة الصوت"
             />
           </div>
 
@@ -610,28 +678,146 @@ export function TtsPanel({
             <ToggleGroup
               type="single"
               value={format}
-              onValueChange={(v) =>
-                v && setFormat(v as "mp3" | "wav" | "opus" | "flac" | "pcm")
-              }
+              onValueChange={(v) => v && setFormat(v as GmiFormat)}
               className="w-full justify-start gap-2 flex-wrap"
             >
               <ToggleGroupItem value="mp3" className="text-xs">
                 MP3
               </ToggleGroupItem>
-              <ToggleGroupItem value="wav" className="text-xs">
-                WAV
-              </ToggleGroupItem>
-              <ToggleGroupItem value="opus" className="text-xs">
-                OPUS
-              </ToggleGroupItem>
               <ToggleGroupItem value="flac" className="text-xs">
                 FLAC
               </ToggleGroupItem>
-              <ToggleGroupItem value="pcm" className="text-xs">
-                PCM
-              </ToggleGroupItem>
             </ToggleGroup>
           </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm">المؤثرات الصوتية المحيطة</Label>
+            <Select
+              dir="rtl"
+              value={soundEffects}
+              onValueChange={(v) => setSoundEffects(v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SOUND_EFFECTS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                    {s.value !== "none" && (
+                      <span className="text-xs text-muted-foreground font-mono ms-2" dir="ltr">
+                        {s.value}
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              مؤثرات على جو الصوت (صدى، هاتف، روبوت). منفصلة عن الوسوم المضمّنة مثل (laughs).
+            </p>
+          </div>
+
+          {/* Advanced settings */}
+          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+            <CollapsibleTrigger asChild>
+              <button className="flex w-full items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs font-medium hover:bg-accent/40 transition-colors">
+                <span>إعدادات متقدمة (معدّل العيّنات، البِت، القناة، اللغة)</span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-4 pt-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">تعزيز اللغة</Label>
+                  <Select
+                    dir="rtl"
+                    value={languageBoost}
+                    onValueChange={(v) => setLanguageBoost(v)}
+                  >
+                    <SelectTrigger className="w-full h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {LANGUAGE_BOOSTS.map((l) => (
+                        <SelectItem key={l.value} value={l.value}>
+                          {l.label}
+                          <span className="text-xs text-muted-foreground font-mono ms-2" dir="ltr">
+                            {l.value}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">معدّل العيّنات (Hz)</Label>
+                    <Select
+                      dir="ltr"
+                      value={sampleRate}
+                      onValueChange={(v) => setSampleRate(v)}
+                    >
+                      <SelectTrigger className="w-full h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SAMPLE_RATES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s} Hz
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">القناة</Label>
+                    <Select
+                      dir="rtl"
+                      value={channel}
+                      onValueChange={(v) => setChannel(v)}
+                    >
+                      <SelectTrigger className="w-full h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHANNELS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {format === "mp3" && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">معدّل البِت (mp3 فقط)</Label>
+                    <Select
+                      dir="ltr"
+                      value={bitrate}
+                      onValueChange={(v) => setBitrate(v)}
+                    >
+                      <SelectTrigger className="w-full h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BITRATES.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {(Number(b) / 1000).toFixed(0)} kbps
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         <Button

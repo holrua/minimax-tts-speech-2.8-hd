@@ -15,14 +15,14 @@ export const EMOTION_PRESETS: EmotionPreset[] = [
   {
     value: "auto",
     label: "تلقائي",
-    description: "يترك النموذج يختار المشاعر المناسبة للنص",
+    description: "يترك النموذج يختار المشاعر المناسبة للنص تلقائيًا",
     emoji: "✨",
   },
   {
-    value: "neutral",
-    label: "محايد",
-    description: "نبرة هادئة وموضوعية",
-    emoji: "😐",
+    value: "calm",
+    label: "هادئ",
+    description: "نبرة هادئة ومطمئنة وثابتة",
+    emoji: "🧘",
   },
   {
     value: "happy",
@@ -59,18 +59,6 @@ export const EMOTION_PRESETS: EmotionPreset[] = [
     label: "متفاجئ",
     description: "نبرة دهشة وانبهار",
     emoji: "😲",
-  },
-  {
-    value: "calm",
-    label: "هادئ",
-    description: "نبرة مهدئة وثابتة",
-    emoji: "🧘",
-  },
-  {
-    value: "fluent",
-    label: "طليق",
-    description: "أداء سلس وطبيعي بدون نبرة عاطفية محددة",
-    emoji: "🗣️",
   },
 ];
 
@@ -176,21 +164,18 @@ export function extractPauseDurations(text: string): number[] {
   return out;
 }
 
-// Emotion → delivery direction string sent to ChinaAPI.
-// ChinaAPI's speech-2.8-hd honours emotion via the `instructions` field when
-// written as "emotion: <value>", AND via the native `voice_setting.emotion`
-// field. We send both for robustness (see the synthesize route).
+// Emotion value sent to GMICloud as `payload.emotion` (native field).
+// GMICloud accepts these directly: auto, calm, happy, sad, angry, fearful,
+// disgusted, surprised. We keep a simple identity map for forward-compat.
 export const EMOTION_DIRECTIONS: Record<string, string> = {
-  auto: "",
-  neutral: "neutral",
+  auto: "auto",
+  calm: "calm",
   happy: "happy",
   sad: "sad",
   angry: "angry",
   fearful: "fearful",
   disgusted: "disgusted",
   surprised: "surprised",
-  calm: "happy, calm",
-  fluent: "neutral",
 };
 
 // Examples demonstrating advanced syntax

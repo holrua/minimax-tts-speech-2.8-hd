@@ -1,21 +1,132 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getModel, DEFAULT_TTS_MODEL } from "@/lib/chinaapi-models";
-import { EMOTION_DIRECTIONS } from "@/lib/minimax-tags";
+import { GMICLOUD_BASE_URL, DEFAULT_TTS_MODEL, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "@/lib/gmicloud-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CHINAAPI_BASE = "https://api.chinaapi.ai/v1";
-
 interface SynthesizeBody {
   apiKey?: string;
-  input?: string;
-  voice?: string;
+  text?: string;
+  voiceId?: string;
   speed?: number;
-  responseFormat?: "mp3" | "wav" | "opus" | "flac" | "pcm";
-  model?: string;
+  vol?: number;
+  pitch?: number;
   emotion?: string;
-  instructions?: string;
+  languageBoost?: string;
+  format?: "mp3" | "flac";
+  audioSampleRate?: string;
+  bitrate?: string;
+  channel?: string;
+  vmPitch?: number;
+  intensity?: number;
+  timbre?: number;
+  soundEffects?: string;
+  model?: string;
+}
+
+interface GmiSubmitResponse {
+  request_id?: string;
+  status?: string;
+  error?: { message?: string } | string;
+  message?: string;
+}
+
+interface GmiStatusResponse {
+  request_id?: string;
+  status?: "queued" | "processing" | "success" | "failed" | "cancelled";
+  outcome?: {
+    audio_url?: string;
+    media_urls?: { id?: string; url?: string }[];
+    format?: string;
+    status?: string;
+  };
+  error?: { message?: string } | string;
+  message?: string;
+}
+
+async function submitJob(params: {
+  apiKey: string;
+  model: string;
+  payload: Record<string, unknown>;
+}): Promise<string> {
+  const res = await fetch(
+    `${GMICLOUD_BASE_URL}/api/v1/ie/requestqueue/apikey/requests`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: params.model, payload: params.payload }),
+    },
+  );
+
+  let json: GmiSubmitResponse;
+  try {
+    json = (await res.json()) as GmiSubmitResponse;
+  } catch {
+    const text = await res.text().catch(() => "");
+    throw new Error(`فشل إرسال المهمة (${res.status}). ${text.slice(0, 200)}`);
+  }
+
+  if (!res.ok || !json.request_id) {
+    let msg: string;
+    if (typeof json.error === "string") msg = json.error;
+    else if (json.error?.message) msg = json.error.message;
+    else if (json.message) msg = json.message;
+    else msg = `فشل إرسال المهمة إلى GMICloud (${res.status})`;
+    throw new Error(msg);
+  }
+  return json.request_id;
+}
+
+async function pollStatus(
+  requestId: string,
+  apiKey: string,
+): Promise<GmiStatusResponse> {
+  const res = await fetch(
+    `${GMICLOUD_BASE_URL}/api/v1/ie/requestqueue/apikey/requests/${requestId}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: "no-store",
+    },
+  );
+
+  let json: GmiStatusResponse;
+  try {
+    json = (await res.json()) as GmiStatusResponse;
+  } catch {
+    const text = await res.text().catch(() => "");
+    throw new Error(`فشل قراءة حالة المهمة (${res.status}). ${text.slice(0, 200)}`);
+  }
+
+  if (!res.ok) {
+    let msg: string;
+    if (typeof json.error === "string") msg = json.error;
+    else if (json.error?.message) msg = json.error.message;
+    else if (json.message) msg = json.message;
+    else msg = `فشل قراءة حالة المهمة (${res.status})`;
+    throw new Error(msg);
+  }
+  return json;
+}
+
+async function fetchAudioToBase64(url: string): Promise<{
+  base64: string;
+  mimeType: string;
+}> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`فشل تنزيل الصوت من GMICloud (${res.status})`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  const ct = res.headers.get("content-type") || "";
+  let mimeType = ct;
+  if (!mimeType.startsWith("audio/")) {
+    // Fall back to guessing from URL extension.
+    mimeType = url.toLowerCase().endsWith(".flac") ? "audio/flac" : "audio/mpeg";
+  }
+  return { base64: buf.toString("base64"), mimeType };
 }
 
 export async function POST(req: NextRequest) {
@@ -23,151 +134,127 @@ export async function POST(req: NextRequest) {
   try {
     body = (await req.json()) as SynthesizeBody;
   } catch {
-    return NextResponse.json(
-      { error: "جسم الطلب غير صالح." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "جسم الطلب غير صالح." }, { status: 400 });
   }
 
   const apiKey = (body.apiKey || "").trim();
-  const input = (body.input || "").trim();
-  const voice = (body.voice || "Arabic_CalmWoman").trim();
+  const text = (body.text || "").trim();
+  const voiceId = (body.voiceId || "Arabic_CalmWoman").trim();
+  const model = (body.model || DEFAULT_TTS_MODEL).trim();
   const speed = typeof body.speed === "number" ? body.speed : 1;
-  const responseFormat =
-    (body.responseFormat as "mp3" | "wav" | "opus" | "flac" | "pcm") || "mp3";
-  let model = (body.model || DEFAULT_TTS_MODEL).trim();
-  const emotion = (body.emotion || "").trim();
-  const instructions = (body.instructions || "").trim();
-
-  // Normalize: strip a stale "minimax/" or "openai/" prefix, then validate.
-  // e.g. "minimax/speech-2.8-hd" (old YepAPI id) -> "speech-2.8-hd".
-  if (model.includes("/") && !getModel(model)) {
-    const suffix = model.split("/").pop();
-    if (suffix && getModel(suffix)) model = suffix;
-  }
-  // If still invalid, fall back to the default model so the request keeps working.
-  if (!getModel(model)) model = DEFAULT_TTS_MODEL;
+  const vol = typeof body.vol === "number" ? body.vol : 1;
+  const pitch = typeof body.pitch === "number" ? body.pitch : 0;
+  const emotion = (body.emotion || "auto").trim();
+  const languageBoost = (body.languageBoost || "auto").trim();
+  const format = body.format === "flac" ? "flac" : "mp3";
+  const audioSampleRate = (body.audioSampleRate || "32000").trim();
+  const bitrate = (body.bitrate || "128000").trim();
+  const channel = body.channel === "1" ? "1" : "2";
+  const vmPitch = typeof body.vmPitch === "number" ? body.vmPitch : 0;
+  const intensity = typeof body.intensity === "number" ? body.intensity : 0;
+  const timbre = typeof body.timbre === "number" ? body.timbre : 0;
+  const soundEffects = (body.soundEffects || "").trim();
 
   if (!apiKey) {
     return NextResponse.json(
       {
         error:
-          "لم يتم ضبط مفتاح API. افتح الإعدادات وأدخل مفتاح ChinaAPI الخاص بك.",
+          "لم يتم ضبط مفتاح API. افتح الإعدادات وأدخل مفتاح GMICloud الخاص بك.",
       },
       { status: 400 },
     );
   }
-  if (!input) {
+  if (!text) {
     return NextResponse.json(
       { error: "الرجاء إدخال النص المراد تحويله إلى صوت." },
       { status: 400 },
     );
   }
-  if (Buffer.byteLength(input, "utf-8") > 50000) {
+  if (Buffer.byteLength(text, "utf-8") > 50000) {
     return NextResponse.json(
       { error: "تجاوز النص الحد الأقصى المسموح (50,000 بايت)." },
       { status: 400 },
     );
   }
 
-  // Build the OpenAI-compatible request body.
-  // ChinaAPI: { model, input, voice, response_format, speed, instructions, voice_setting }
+  // GMICloud expects the payload nested under `payload`. Note that many fields
+  // are strings (even numeric ones) per the API spec.
   const payload: Record<string, unknown> = {
-    model,
-    input,
-    voice,
-    response_format: responseFormat,
-    speed,
+    text,
+    voice_id: voiceId,
+    speed: String(speed),
+    vol: String(vol),
+    pitch,
+    emotion,
+    language_boost: languageBoost,
+    format,
+    audio_sample_rate: audioSampleRate,
+    bitrate,
+    channel,
+    vm_pitch: vmPitch,
+    intensity,
+    timbre,
+    sound_effects: soundEffects,
   };
-  // Emotion: verified empirically that ChinaAPI forwards BOTH:
-  //   1. `voice_setting.emotion` (native MiniMax shape) — produces the
-  //      strongest, most reliable emotional delivery.
-  //   2. `instructions: "emotion: <value>"` — also honoured by the gateway.
-  // We send both so the emotion lands even if only one path is active upstream.
-  const emotionDirections: string[] = [];
-  if (emotion && emotion !== "auto") {
-    const brief = EMOTION_DIRECTIONS[emotion] || emotion;
-    emotionDirections.push(`emotion: ${brief}`);
-    payload.voice_setting = { emotion: brief };
-    payload.emotion = brief; // best-effort top-level passthrough
-  }
-  if (instructions) {
-    emotionDirections.push(instructions);
-  }
-  if (emotionDirections.length > 0) {
-    payload.instructions = emotionDirections.join("; ");
-  }
 
   try {
-    const res = await fetch(`${CHINAAPI_BASE}/audio/speech`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    const requestId = await submitJob({ apiKey, model, payload });
 
-    // ChinaAPI returns the audio bytes directly (Content-Type: audio/mpeg).
-    // On error it returns JSON.
-    const contentType = res.headers.get("content-type") || "";
+    // Poll until success, failure, or timeout.
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let attempt = 0;
+    let lastStatus = "queued";
 
-    if (!res.ok) {
-      let msg: string;
-      if (contentType.includes("application/json")) {
-        try {
-          const errJson = (await res.json()) as {
-            error?: { message?: string } | string;
-            message?: string;
-          };
-          if (typeof errJson.error === "string") msg = errJson.error;
-          else if (errJson.error?.message) msg = errJson.error.message;
-          else if (errJson.message) msg = errJson.message;
-          else msg = JSON.stringify(errJson);
-        } catch {
-          msg = `فشل التوليد (${res.status})`;
+    while (Date.now() < deadline) {
+      attempt += 1;
+      const data = await pollStatus(requestId, apiKey);
+      lastStatus = data.status || lastStatus;
+
+      if (data.status === "success") {
+        const audioUrl =
+          data.outcome?.audio_url || data.outcome?.media_urls?.[0]?.url;
+        if (!audioUrl) {
+          return NextResponse.json(
+            { error: "اكتملت المهمة لكن لم يتم العثور على رابط الصوت." },
+            { status: 502 },
+          );
         }
-      } else {
-        const text = await res.text().catch(() => "");
-        msg = text.slice(0, 300) || `فشل التوليد (${res.status})`;
+        const { base64, mimeType } = await fetchAudioToBase64(audioUrl);
+        return NextResponse.json({
+          requestId,
+          status: "completed",
+          audio: { mimeType, base64 },
+          audioUrl,
+        });
       }
-      // Translate the most common ChinaAPI upstream errors into clear guidance.
-      if (/no available channel/i.test(msg)) {
-        msg =
-          `لا توجد قناة متاحة لهذا النموذج (${model}). قد يكون معرّف النموذج غير صحيح أو غير مفعّل لحسابك. ` +
-          `جرّب نموذجًا آخر من القائمة (مثل speech-2.8-hd).`;
-      } else if (/model not found|invalid model|unknown model/i.test(msg)) {
-        msg = `النموذج "${model}" غير معروف على ChinaAPI. اختر نموذجًا من القائمة.`;
-      }
-      return NextResponse.json({ error: msg }, { status: res.status });
-    }
 
-    if (!contentType.startsWith("audio/")) {
-      // Not the expected binary response
-      const text = await res.text().catch(() => "");
-      return NextResponse.json(
-        {
-          error:
-            "استجابة غير متوقعة من ChinaAPI. تحقق من المفتاح والنموذج. " +
-            text.slice(0, 200),
-        },
-        { status: 502 },
+      if (data.status === "failed" || data.status === "cancelled") {
+        let msg: string;
+        if (typeof data.error === "string") msg = data.error;
+        else if (data.error?.message) msg = data.error.message;
+        else if (data.message) msg = data.message;
+        else msg = `فشلت المهمة على GMICloud (الحالة: ${data.status}).`;
+        return NextResponse.json(
+          { error: msg, requestId, status: data.status },
+          { status: 502 },
+        );
+      }
+
+      await new Promise((r) =>
+        setTimeout(r, Math.min(POLL_INTERVAL_MS, 2500 + attempt * 200)),
       );
     }
 
-    // Read binary audio and base64-encode for the client
-    const audioBuffer = Buffer.from(await res.arrayBuffer());
-    const base64 = audioBuffer.toString("base64");
-    const mimeType = contentType;
-
-    return NextResponse.json({
-      status: "completed",
-      audio: {
-        mimeType,
-        base64,
+    // Timed out — return the request id so the client can keep polling.
+    return NextResponse.json(
+      {
+        requestId,
+        status: lastStatus,
+        error: "المهمة لا تزال قيد المعالجة. يمكنك متابعة الاستعلام عنها.",
+        timeout: true,
       },
-      bytes: audioBuffer.length,
-    });
+      { status: 202 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "خطأ غير متوقع.";
     return NextResponse.json({ error: message }, { status: 500 });
