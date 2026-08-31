@@ -49,44 +49,78 @@ async function submitJob(params: {
   model: string;
   payload: Record<string, unknown>;
 }): Promise<string> {
-  const res = await fetch(
-    `${GMICLOUD_BASE_URL}/api/v1/ie/requestqueue/apikey/requests`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.apiKey}`,
-        "Content-Type": "application/json",
+  // Retry on transient upstream capacity errors ("Upstream capacity
+  // temporarily exhausted; please retry later") with exponential backoff.
+  const MAX_ATTEMPTS = 4;
+  const BACKOFF_BASE_MS = 3000;
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(
+      `${GMICLOUD_BASE_URL}/api/v1/ie/requestqueue/apikey/requests`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${params.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: params.model, payload: params.payload }),
       },
-      body: JSON.stringify({ model: params.model, payload: params.payload }),
-    },
-  );
+    );
 
-  let json: GmiSubmitResponse;
-  try {
-    json = (await res.json()) as GmiSubmitResponse;
-  } catch {
-    const text = await res.text().catch(() => "");
-    throw new Error(`فشل إرسال المهمة (${res.status}). ${text.slice(0, 200)}`);
-  }
+    let json: GmiSubmitResponse;
+    try {
+      json = (await res.json()) as GmiSubmitResponse;
+    } catch {
+      const text = await res.text().catch(() => "");
+      throw new Error(`فشل إرسال المهمة (${res.status}). ${text.slice(0, 200)}`);
+    }
 
-  if (!res.ok || !json.request_id) {
+    if (res.ok && json.request_id) {
+      return json.request_id;
+    }
+
+    // Extract error message
     let msg: string;
     if (typeof json.error === "string") msg = json.error;
     else if (json.error?.message) msg = json.error.message;
     else if (json.message) msg = json.message;
     else msg = `فشل إرسال المهمة إلى GMICloud (${res.status})`;
-    // Translate common GMICloud upstream errors into clear Arabic guidance.
+    lastError = msg;
+
+    // If it's a transient capacity issue, retry after a backoff.
+    if (/upstream capacity|temporarily exhausted|please retry later/i.test(msg)) {
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) =>
+          setTimeout(r, BACKOFF_BASE_MS * attempt),
+        );
+        continue;
+      }
+      // Final attempt: surface a clear Arabic message.
+      throw new Error(
+        "خوادم MiniMax المنبع مستنزفة حالياً (Upstream capacity exhausted). " +
+          "هذه مشكلة مؤقتة من جهة GMICloud يرجى إعادة المحاولة بعد دقيقة. " +
+          "تمت 4 محاولات تلقائية وفشلت كلها.",
+      );
+    }
+
+    // Non-retryable error: translate the common ones and throw.
     if (/no access to this voice_id|don't have access to this voice|voice_id.*not.*found/i.test(msg)) {
-      msg =
-        `لا يمكن استخدام هذا الصوت (voice_id). معرّفات الأصوات المستنسخة تخص حساب المُنشئ فقط — ` +
-        `لا يمكنك استخدام صوت مستنسخ من حساب آخر. جرّب صوتًا من القائمة (مثل «امرأة هادئة») ` +
-        `أو استنسخ صوتًا جديدًا على حسابك وأدخل معرّفه في قسم «معرّف مخصص».`;
-    } else if (/invalid voice_id|voice_id.*invalid/i.test(msg)) {
-      msg = `معرّف الصوت غير صالح. اختر صوتًا من القائمة أو تأكد من صحة المعرّف المخصص.`;
+      throw new Error(
+        "لا يمكن استخدام هذا الصوت (voice_id). معرّفات الأصوات المستنسخة تخص حساب المُنشئ فقط — " +
+          "لا يمكنك استخدام صوت مستنسخ من حساب آخر. جرّب صوتًا من القائمة (مثل «امرأة هادئة») " +
+          "أو استنسخ صوتًا جديدًا على حسابك وأدخل معرّفه في قسم «معرّف مخصص».",
+      );
+    }
+    if (/invalid voice_id|voice_id.*invalid|voice id wrong/i.test(msg)) {
+      throw new Error(
+        "معرّف الصوت غير صالح (voice id wrong). اختر صوتًا من القائمة أو تأكد من صحة المعرّف المخصص.",
+      );
     }
     throw new Error(msg);
   }
-  return json.request_id;
+
+  throw new Error(lastError || "فشل إرسال المهمة.");
 }
 
 async function pollStatus(
