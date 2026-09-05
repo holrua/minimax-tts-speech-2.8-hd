@@ -1,5 +1,7 @@
 // LocalStorage-backed persistence. No login / no server accounts.
-// Stores: Rewind.ai key, settings, custom cloned voices, and generation history.
+// Stores: provider API key, settings, custom cloned voices, and generation history.
+// Currently no TTS provider is wired up — awaiting a new provider that supports
+// voice cloning IDs. See the synthesize API route stub.
 
 export const STORAGE_KEYS = {
   apiKey: "vc_api_key",
@@ -12,14 +14,12 @@ export interface AppSettings {
   defaultVoice: string;
   speed: number;
   outputFormat: "mp3" | "wav";
-  model: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultVoice: "Arabic_CalmWoman",
   speed: 1,
   outputFormat: "mp3",
-  model: "minimax/speech-2.8-hd",
 };
 
 export interface CustomVoice {

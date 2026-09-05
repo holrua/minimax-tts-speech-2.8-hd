@@ -7,8 +7,8 @@ import {
   History,
   KeyRound,
   Sparkles,
-  Github,
   ShieldCheck,
+  ServerOff,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,18 +18,12 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { TtsPanel } from "@/components/tts-panel";
 import { VoiceClonePanel } from "@/components/voice-clone-panel";
 import { HistoryPanel } from "@/components/history-panel";
-import { getApiKey } from "@/lib/storage";
 
 export default function Home() {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [hasKey, setHasKey] = React.useState(false);
   const [historyTick, setHistoryTick] = React.useState(0);
   const [voicesTick, setVoicesTick] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState("tts");
-
-  React.useEffect(() => {
-    setHasKey(!!getApiKey());
-  }, [settingsOpen]);
 
   return (
     <div className="min-h-screen flex flex-col bg-aurora">
@@ -53,25 +47,13 @@ export default function Home() {
 
           <div className="flex items-center gap-2">
             <Badge
-              variant={hasKey ? "secondary" : "outline"}
-              className={
-                hasKey
-                  ? "hidden sm:flex bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1"
-                  : "hidden sm:flex text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1"
-              }
+              variant="outline"
+              className="hidden sm:flex bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1"
             >
-              {hasKey ? (
-                <>
-                  <ShieldCheck className="h-3.5 w-3.5" /> مفتاح مُفعّل
-                </>
-              ) : (
-                <>
-                  <KeyRound className="h-3.5 w-3.5" /> أضف مفتاح API
-                </>
-              )}
+              <ServerOff className="h-3.5 w-3.5" /> الخدمة متوقفة
             </Badge>
             <Button
-              variant={hasKey ? "outline" : "default"}
+              variant="outline"
               size="sm"
               onClick={() => setSettingsOpen(true)}
               className="gap-2"
@@ -88,17 +70,17 @@ export default function Home() {
       <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
         {/* Hero */}
         <section className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur-sm mb-4">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            مدعوم بـ Rewind.ai — MiniMax Speech 2.8 HD و Kokoro
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/5 px-4 py-1.5 text-xs text-amber-600 dark:text-amber-400 backdrop-blur-sm mb-4">
+            <Sparkles className="h-3.5 w-3.5" />
+            خدمة TTS متوقفة مؤقتًا — في انتظار مزود جديد يدعم استنساخ الصوت
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text">
-            حوّل أي نص إلى صوت عالي الجودة
+            استوديو صوت الذكاء
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
-            استوديو متكامل لتحويل النص إلى صوت بأعلى جودة، مع استنساخ الصوت
-            ولوحة إعدادات لمفاتيح API. كل شيء يُحفظ في متصفحك —{" "}
-            <span className="font-semibold text-foreground">بدون تسجيل دخول</span>.
+            استوديو متكامل لتحويل النص إلى صوت واستنساخ الصوت. حاليًا الخدمة
+            متوقفة مؤقتًا لعدم وجود مزود يدعم استنساخ الأصوات — كل شيء يُحفظ في
+            متصفحك و<span className="font-semibold text-foreground">بدون تسجيل دخول</span>.
           </p>
         </section>
 
@@ -154,9 +136,9 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="font-mono">api.rewind.ai</span>
+            <span className="text-amber-600 dark:text-amber-400">في انتظار مزود TTS جديد</span>
             <span>·</span>
-            <span>تزامني — رابط صوت مباشر بعد التوليد</span>
+            <span>يدعم استنساخ الصوت</span>
           </div>
         </div>
       </footer>
@@ -164,7 +146,6 @@ export default function Home() {
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        onSaved={() => setHasKey(!!getApiKey())}
       />
     </div>
   );
