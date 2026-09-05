@@ -112,6 +112,13 @@ export const VOICE_PRESETS: VoicePreset[] = [
     category: "arabic",
     gender: "male",
   },
+  {
+    id: "moss_audio_49c45f4a-98be-11f1-b655-02b7e1313c99",
+    label: "صوت مستنسخ (عربي)",
+    description: "صوت مستنسخ مخصص — يعمل عبر Rewind.ai بنموذج MiniMax Speech 2.8 HD",
+    category: "arabic",
+    gender: "male",
+  },
 ];
 
 export const VOICE_CATEGORIES: { value: VoiceCategory; label: string }[] = [
