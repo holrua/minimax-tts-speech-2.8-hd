@@ -17,7 +17,7 @@ interface RewindTtsResponse {
   audio_url?: string;
   format?: string;
   voice?: string;
-  error?: { message?: string } | string;
+  error?: { message?: string; code?: string; details?: { required?: number; available?: number } } | string;
   message?: string;
 }
 
@@ -101,12 +101,44 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // Extract error message
+      // Extract error code + message
+      const errorCode =
+        typeof json.error === "object" && json.error ? json.error.code : "";
       let msg: string;
       if (typeof json.error === "string") msg = json.error;
       else if (json.error?.message) msg = json.error.message;
       else if (json.message) msg = json.message;
       else msg = `فشل التوليد على Rewind.ai (${res.status})`;
+
+      // Insufficient tokens (quota exhausted) — clear actionable message.
+      // HTTP 429 + INSUFFICIENT_TOKENS code.
+      if (
+        errorCode === "INSUFFICIENT_TOKENS" ||
+        /insufficient tokens/i.test(msg) ||
+        res.status === 429
+      ) {
+        const available =
+          typeof json.error === "object" && json.error?.details?.available !== undefined
+            ? json.error.details.available
+            : null;
+        const required =
+          typeof json.error === "object" && json.error?.details?.required !== undefined
+            ? json.error.details.required
+            : null;
+        const detail =
+          available !== null && required !== null
+            ? ` (مطلوب ${required}، متاح ${available})`
+            : "";
+        return NextResponse.json(
+          {
+            error:
+              "رصيدك من الـ tokens على Rewind.ai قد نفد" +
+              detail +
+              ". اذهب إلى rewind.ai لإعادة شحن الرصيد، أو جرّب نموذجًا أرخص مثل «Kokoro 82M» (مجاني)، أو استخدم نصًا أقصر.",
+          },
+          { status: 402 },
+        );
+      }
 
       // Retry on transient capacity errors.
       if (
