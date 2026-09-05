@@ -9,11 +9,8 @@ import {
   Mic2,
   Pause,
   Music2,
-  Heart,
   ChevronDown,
   Lightbulb,
-  X,
-  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,15 +59,10 @@ import {
   TTS_MODELS,
   getModel,
   DEFAULT_TTS_MODEL,
-  SOUND_EFFECTS,
-  SAMPLE_RATES,
-  BITRATES,
-  CHANNELS,
-  LANGUAGE_BOOSTS,
-  type GmiFormat,
-} from "@/lib/gmicloud-models";
+  FORMAT_OPTIONS,
+  type RewindFormat,
+} from "@/lib/rewind-models";
 import {
-  EMOTION_PRESETS,
   SOUND_TAG_PRESETS,
   SOUND_TAG_CATEGORIES,
   makePauseTag,
@@ -97,17 +89,8 @@ export function TtsPanel({
   const [voice, setVoice] = React.useState("Arabic_CalmWoman");
   const [category, setCategory] = React.useState<VoiceCategory>("arabic");
   const [speed, setSpeed] = React.useState(1);
-  const [vol, setVol] = React.useState(1);
-  const [pitch, setPitch] = React.useState(0);
-  const [format, setFormat] = React.useState<GmiFormat>("mp3");
-  const [emotion, setEmotion] = React.useState("auto");
-  const [languageBoost, setLanguageBoost] = React.useState("auto");
-  const [sampleRate, setSampleRate] = React.useState("32000");
-  const [bitrate, setBitrate] = React.useState("128000");
-  const [channel, setChannel] = React.useState("2");
-  const [soundEffects, setSoundEffects] = React.useState("none");
+  const [format, setFormat] = React.useState<RewindFormat>("mp3");
   const [model, setModel] = React.useState(DEFAULT_TTS_MODEL);
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [useCustomId, setUseCustomId] = React.useState(false);
   const [customId, setCustomId] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -136,20 +119,12 @@ export function TtsPanel({
     }
     setVoice(validVoice);
     setSpeed(s.speed);
-    setVol(s.vol);
-    setPitch(s.pitch);
     setFormat(s.outputFormat);
-    setLanguageBoost(s.languageBoost);
-    setSampleRate(s.audioSampleRate);
-    setBitrate(s.bitrate);
-    setChannel(s.channel);
-    setSoundEffects(s.soundEffects || "none");
     // Sync the category dropdown to the saved voice's category so the right
     // list shows up. Falls back to "arabic" (the user's primary language).
     const preset = VOICE_PRESETS.find((v) => v.id === validVoice);
     setCategory(preset?.category ?? "arabic");
-    // Auto-fix stale model ids (e.g. old "speech-2.8-hd" / "minimax/speech-2.8-hd")
-    // to the current GMICloud default.
+    // Auto-fix stale model ids to the current Rewind default.
     const validModel = getModel(s.model) ? s.model : DEFAULT_TTS_MODEL;
     if (validModel !== s.model) {
       setSettings({ ...s, model: validModel });
@@ -167,19 +142,18 @@ export function TtsPanel({
   const cost = estimateCost(byteLen);
   const overLimit = byteLen > 50000;
 
-  // Count inline tags present in text
+  // Count inline tags present in text (only honoured by the MiniMax models).
   const pauseCount = React.useMemo(
     () => extractPauseDurations(text).length,
     [text],
   );
   const soundTagCount = React.useMemo(
-    // Match any inline sound tag of the form "(word)" or "(word word)"; we
-    // exclude obvious sentence punctuation-only parentheses by requiring word
-    // characters inside. This matches both official tags like "(laughs)",
-    // "(clears throat)" and the older noun forms "(laughter)".
     () => (text.match(/\((?:[a-z][a-z -]{1,30})\)/gi) || []).length,
     [text],
   );
+
+  // Inline pause/sound tags only apply to MiniMax Speech 2.8 HD/Turbo.
+  const isMiniMax = /minimax\/speech-2\.8/.test(model);
 
   const filteredVoices = VOICE_PRESETS.filter((v) => v.category === category);
 
@@ -194,7 +168,6 @@ export function TtsPanel({
     const end = ta.selectionEnd ?? text.length;
     const newText = text.slice(0, start) + snippet + text.slice(end);
     setText(newText);
-    // restore focus + place caret after the inserted snippet
     requestAnimationFrame(() => {
       ta.focus();
       const pos = start + snippet.length;
@@ -215,7 +188,7 @@ export function TtsPanel({
       setHasKey(false);
       toast({
         title: "مفتاح API مفقود",
-        description: "افتح الإعدادات وأدخل مفتاح GMICloud أولًا.",
+        description: "افتح الإعدادات وأدخل مفتاح Rewind.ai أولًا.",
         variant: "destructive",
       });
       onOpenSettings();
@@ -237,7 +210,7 @@ export function TtsPanel({
       });
       return;
     }
-    const finalVoice = (useCustomId ? customId.trim() : voice) || "Arabic_CalmWoman";
+    const finalVoice = (useCustomId ? customId.trim() : voice) || "af_heart";
 
     setLoading(true);
     try {
@@ -247,17 +220,9 @@ export function TtsPanel({
         body: JSON.stringify({
           apiKey: key,
           text,
-          voiceId: finalVoice,
+          voice: finalVoice,
           speed,
-          vol,
-          pitch,
-          emotion,
-          languageBoost,
           format,
-          audioSampleRate: sampleRate,
-          bitrate,
-          channel,
-          soundEffects: soundEffects === "none" ? "" : soundEffects,
           model,
         }),
       });
@@ -283,7 +248,6 @@ export function TtsPanel({
         speed,
         format,
         model,
-        emotion: emotion !== "auto" ? emotion : undefined,
         audioBase64: data.audio.base64,
         mimeType: mime,
         createdAt: Date.now(),
@@ -329,55 +293,29 @@ export function TtsPanel({
             </div>
           </div>
 
-          {/* Advanced controls toolbar */}
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/30 p-2">
-            {/* Emotion */}
-            <div className="flex items-center gap-1.5">
-              <Heart className="h-4 w-4 text-rose-500 shrink-0" />
-              <Select dir="rtl" value={emotion} onValueChange={setEmotion}>
-                <SelectTrigger className="h-8 w-auto min-w-[120px] gap-1 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EMOTION_PRESETS.map((e) => (
-                    <SelectItem key={e.value} value={e.value}>
-                      <span className="flex items-center gap-1.5">
-                        <span>{e.emoji}</span>
-                        <span>{e.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Advanced inline-tag toolbar (MiniMax models only) */}
+          {isMiniMax && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/30 p-2">
+              <PausePicker onInsert={(tag) => insertAtCursor(tag)} />
+              <SoundTagPicker onInsert={insertAtCursor} />
+              {(pauseCount > 0 || soundTagCount > 0) && (
+                <div className="flex items-center gap-1.5 ms-auto">
+                  {pauseCount > 0 && (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <Pause className="h-2.5 w-2.5" />
+                      {pauseCount} إيقاف
+                    </Badge>
+                  )}
+                  {soundTagCount > 0 && (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <Music2 className="h-2.5 w-2.5" />
+                      {soundTagCount} مؤثر
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
-
-            <span className="h-5 w-px bg-border/60" />
-
-            {/* Pause insert */}
-            {/* Pause picker with customisable duration */}
-            <PausePicker onInsert={(tag) => insertAtCursor(tag)} />
-
-            {/* Sound tag picker */}
-            <SoundTagPicker onInsert={insertAtCursor} />
-
-            {/* Live tag counts */}
-            {(pauseCount > 0 || soundTagCount > 0) && (
-              <div className="flex items-center gap-1.5 ms-auto">
-                {pauseCount > 0 && (
-                  <Badge variant="outline" className="text-[10px] gap-1">
-                    <Pause className="h-2.5 w-2.5" />
-                    {pauseCount} إيقاف
-                  </Badge>
-                )}
-                {soundTagCount > 0 && (
-                  <Badge variant="outline" className="text-[10px] gap-1">
-                    <Music2 className="h-2.5 w-2.5" />
-                    {soundTagCount} مؤثر
-                  </Badge>
-                )}
-              </div>
-            )}
-          </div>
+          )}
 
           <Textarea
             id="tts-text"
@@ -385,7 +323,7 @@ export function TtsPanel({
             dir="auto"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="اكتب أو الصق النص هنا... يدعم اللغات المتعددة. استخدم الأدوات أعلاه لإضافة المشاعر والإيقاف والمؤثرات."
+            placeholder="اكتب أو الصق النص هنا... يدعم اللغات المتعددة."
             className="min-h-[240px] resize-y text-base leading-relaxed scroll-area-custom"
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -394,74 +332,66 @@ export function TtsPanel({
           </div>
         </div>
 
-        {/* Examples / help */}
-        <Collapsible open={helpOpen} onOpenChange={setHelpOpen}>
-          <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm overflow-hidden">
-            <CollapsibleTrigger asChild>
-              <button className="flex w-full items-center justify-between p-3 hover:bg-accent/40 transition-colors">
-                <span className="flex items-center gap-2 text-sm font-semibold">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  أمثلة وشرح الصياغة المتقدمة
-                </span>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${helpOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="border-t border-border/60 p-4 space-y-4">
-                {/* Syntax help */}
-                <div className="grid sm:grid-cols-3 gap-3">
-                  <SyntaxCard
-                    icon={<Heart className="h-4 w-4 text-rose-500" />}
-                    title="المشاعر (Emotion)"
-                    syntax="يُختار من القائمة أعلاه"
-                    desc="يُرسَل كوصف طبيعي للنبرة (تعليمات باللغة الإنجليزية) فيؤثر في أداء القراءة"
+        {/* Examples / help (MiniMax models only) */}
+        {isMiniMax && (
+          <Collapsible open={helpOpen} onOpenChange={setHelpOpen}>
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="flex w-full items-center justify-between p-3 hover:bg-accent/40 transition-colors">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    أمثلة وشرح الصياغة المتقدمة (لنموذج MiniMax)
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${helpOpen ? "rotate-180" : ""}`}
                   />
-                  <SyntaxCard
-                    icon={<Pause className="h-4 w-4 text-primary" />}
-                    title="إيقاف مؤقت"
-                    syntax="<#0.5#>"
-                    desc="يضيف وقفة بالمدة المحددة (بالثواني). الشكل <#> المختصر لا يُقرأ — يجب ذكر المدة."
-                    mono
-                  />
-                  <SyntaxCard
-                    icon={<Music2 className="h-4 w-4 text-violet-500" />}
-                    title="مؤثر صوتي"
-                    syntax="(laughs)"
-                    desc="يضيف مؤثرًا صوتيًا رسميًا (مثل الضحك أو السعال). استخدم صيغة الفعل: (laughs), (sighs), (coughs), (yawns)…"
-                    mono
-                  />
-                </div>
-
-                {/* Examples */}
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    جرّب هذه الأمثلة:
-                  </p>
-                  {ADVANCED_EXAMPLES.map((ex, i) => (
-                    <button
-                      key={i}
-                      onClick={() => insertExample(ex.text)}
-                      className="flex w-full items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 text-start hover:border-primary/50 hover:bg-accent/40 transition-colors"
-                    >
-                      <span className="text-xs font-semibold text-primary shrink-0 mt-0.5">
-                        {ex.title}
-                      </span>
-                      <span
-                        className="text-xs text-muted-foreground font-mono leading-relaxed flex-1"
-                        dir="auto"
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t border-border/60 p-4 space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <SyntaxCard
+                      icon={<Pause className="h-4 w-4 text-primary" />}
+                      title="إيقاف مؤقت"
+                      syntax="<#0.5#>"
+                      desc="يضيف وقفة بالمدة المحددة (بالثواني). لنماذج MiniMax فقط."
+                      mono
+                    />
+                    <SyntaxCard
+                      icon={<Music2 className="h-4 w-4 text-violet-500" />}
+                      title="مؤثر صوتي"
+                      syntax="(laughs)"
+                      desc="يضيف مؤثرًا صوتيًا (ضحك، سعال...). لنماذج MiniMax فقط."
+                      mono
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      جرّب هذه الأمثلة:
+                    </p>
+                    {ADVANCED_EXAMPLES.map((ex, i) => (
+                      <button
+                        key={i}
+                        onClick={() => insertExample(ex.text)}
+                        className="flex w-full items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 text-start hover:border-primary/50 hover:bg-accent/40 transition-colors"
                       >
-                        {ex.text}
-                      </span>
-                      <X className="h-3 w-3 opacity-0 group-hover:opacity-100" />
-                    </button>
-                  ))}
+                        <span className="text-xs font-semibold text-primary shrink-0 mt-0.5">
+                          {ex.title}
+                        </span>
+                        <span
+                          className="text-xs text-muted-foreground font-mono leading-relaxed flex-1"
+                          dir="auto"
+                        >
+                          {ex.text}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -487,6 +417,53 @@ export function TtsPanel({
           <div className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-primary" />
             <h3 className="font-semibold">إعدادات التوليد</h3>
+          </div>
+
+          {/* Model picker */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">النموذج</Label>
+              {(() => {
+                const m = getModel(model);
+                return m?.badge ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {m.badge}
+                  </Badge>
+                ) : null;
+              })()}
+            </div>
+            <Select dir="rtl" value={model} onValueChange={setModel}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {TTS_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <span className="flex flex-col">
+                      <span className="flex items-center gap-1.5">
+                        {m.label}
+                        {m.badge && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            {m.badge}
+                          </Badge>
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground" dir="ltr">
+                        {m.id}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(() => {
+              const m = getModel(model);
+              return m ? (
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {m.description}
+                </p>
+              ) : null;
+            })()}
           </div>
 
           {/* Voice source toggle */}
@@ -567,67 +544,20 @@ export function TtsPanel({
             </>
           ) : (
             <div className="space-y-2">
-              <Label className="text-sm">معرّف صوت MiniMax</Label>
+              <Label className="text-sm">معرّف الصوت</Label>
               <Input
                 dir="ltr"
                 value={customId}
                 onChange={(e) => setCustomId(e.target.value)}
-                placeholder="مثال: cloned_voice_abc123"
+                placeholder="مثال: af_heart أو Arabic_CalmWoman"
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground leading-relaxed">
-                يدعم النموذج أي معرّف صوت MiniMax. استخدم معرّف صوت مستنسخ من
-                قسم استنساخ الصوت.
+                أدخل أي معرّف صوت مدعوم (Kokoro مثل af_heart، أو MiniMax مثل
+                English_expressive_narrator).
               </p>
             </div>
           )}
-
-          {/* Model picker */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">النموذج</Label>
-              {(() => {
-                const m = getModel(model);
-                return m?.badge ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {m.badge}
-                  </Badge>
-                ) : null;
-              })()}
-            </div>
-            <Select dir="rtl" value={model} onValueChange={setModel}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {TTS_MODELS.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    <span className="flex flex-col">
-                      <span className="flex items-center gap-1.5">
-                        {m.label}
-                        {m.badge && (
-                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                            {m.badge}
-                          </Badge>
-                        )}
-                      </span>
-                      <span className="text-xs text-muted-foreground" dir="ltr">
-                        {m.id}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(() => {
-              const m = getModel(model);
-              return m ? (
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {m.description}
-                </p>
-              ) : null;
-            })()}
-          </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -641,45 +571,9 @@ export function TtsPanel({
               value={[speed]}
               min={0.5}
               max={2}
-              step={0.1}
+              step={0.05}
               onValueChange={(v) => setSpeed(v[0])}
               aria-label="سرعة التشغيل"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">مستوى الصوت</Label>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {vol.toFixed(1)}
-              </Badge>
-            </div>
-            <Slider
-              dir="ltr"
-              value={[vol]}
-              min={0}
-              max={10}
-              step={0.1}
-              onValueChange={(v) => setVol(v[0])}
-              aria-label="مستوى الصوت"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">طبقة الصوت (Pitch)</Label>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {pitch}
-              </Badge>
-            </div>
-            <Slider
-              dir="ltr"
-              value={[pitch]}
-              min={-12}
-              max={12}
-              step={1}
-              onValueChange={(v) => setPitch(v[0])}
-              aria-label="طبقة الصوت"
             />
           </div>
 
@@ -688,146 +582,16 @@ export function TtsPanel({
             <ToggleGroup
               type="single"
               value={format}
-              onValueChange={(v) => v && setFormat(v as GmiFormat)}
+              onValueChange={(v) => v && setFormat(v as RewindFormat)}
               className="w-full justify-start gap-2 flex-wrap"
             >
-              <ToggleGroupItem value="mp3" className="text-xs">
-                MP3
-              </ToggleGroupItem>
-              <ToggleGroupItem value="flac" className="text-xs">
-                FLAC
-              </ToggleGroupItem>
+              {FORMAT_OPTIONS.map((f) => (
+                <ToggleGroupItem key={f.value} value={f.value} className="text-xs">
+                  {f.label}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm">المؤثرات الصوتية المحيطة</Label>
-            <Select
-              dir="rtl"
-              value={soundEffects}
-              onValueChange={(v) => setSoundEffects(v)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SOUND_EFFECTS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                    {s.value !== "none" && (
-                      <span className="text-xs text-muted-foreground font-mono ms-2" dir="ltr">
-                        {s.value}
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              مؤثرات على جو الصوت (صدى، هاتف، روبوت). منفصلة عن الوسوم المضمّنة مثل (laughs).
-            </p>
-          </div>
-
-          {/* Advanced settings */}
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-            <CollapsibleTrigger asChild>
-              <button className="flex w-full items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs font-medium hover:bg-accent/40 transition-colors">
-                <span>إعدادات متقدمة (معدّل العيّنات، البِت، القناة، اللغة)</span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
-                />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="space-y-4 pt-3">
-                <div className="space-y-2">
-                  <Label className="text-xs">تعزيز اللغة</Label>
-                  <Select
-                    dir="rtl"
-                    value={languageBoost}
-                    onValueChange={(v) => setLanguageBoost(v)}
-                  >
-                    <SelectTrigger className="w-full h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {LANGUAGE_BOOSTS.map((l) => (
-                        <SelectItem key={l.value} value={l.value}>
-                          {l.label}
-                          <span className="text-xs text-muted-foreground font-mono ms-2" dir="ltr">
-                            {l.value}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">معدّل العيّنات (Hz)</Label>
-                    <Select
-                      dir="ltr"
-                      value={sampleRate}
-                      onValueChange={(v) => setSampleRate(v)}
-                    >
-                      <SelectTrigger className="w-full h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SAMPLE_RATES.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s} Hz
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">القناة</Label>
-                    <Select
-                      dir="rtl"
-                      value={channel}
-                      onValueChange={(v) => setChannel(v)}
-                    >
-                      <SelectTrigger className="w-full h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CHANNELS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {format === "mp3" && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">معدّل البِت (mp3 فقط)</Label>
-                    <Select
-                      dir="ltr"
-                      value={bitrate}
-                      onValueChange={(v) => setBitrate(v)}
-                    >
-                      <SelectTrigger className="w-full h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BITRATES.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {(Number(b) / 1000).toFixed(0)} kbps
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
         <Button
@@ -906,7 +670,6 @@ function PausePicker({
 }) {
   const [open, setOpen] = React.useState(false);
   const [duration, setDuration] = React.useState(0.5);
-
   const presets = [0.3, 0.5, 1, 1.5, 2, 3];
 
   const handleInsert = (secs: number) => {
@@ -934,7 +697,6 @@ function PausePicker({
             <Pause className="h-3.5 w-3.5 text-primary" />
             مدة الإيقاف المؤقت
           </div>
-
           <div className="grid grid-cols-3 gap-1.5">
             {presets.map((p) => (
               <button
@@ -946,7 +708,6 @@ function PausePicker({
               </button>
             ))}
           </div>
-
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">مخصّص</span>
@@ -969,10 +730,9 @@ function PausePicker({
               إدراج <span className="font-mono">{makePauseTag(duration)}</span>
             </Button>
           </div>
-
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            يجب تحديد المدة بالصيغة <code className="font-mono">&lt;#ثانية#&gt;</code> —
-            النموذج لا يقرأ الشكل المختصر <code className="font-mono">&lt;#&gt;</code>.
+            يجب تحديد المدة بالصيغة <code className="font-mono">&lt;#ثانية#&gt;</code>.
+            متاح فقط لنموذج MiniMax Speech 2.8.
           </p>
         </div>
       </PopoverContent>
@@ -1027,17 +787,14 @@ function SoundTagPicker({
       >
         <div className="p-2 border-b border-border/60">
           <div className="relative">
-            <Search className="absolute start-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="ابحث عن مؤثر..."
-              className="h-8 ps-7 text-xs"
+              className="h-8 text-xs"
             />
           </div>
         </div>
-
-        {/* Category chips */}
         <div className="flex flex-wrap gap-1 p-2 border-b border-border/60">
           <button
             onClick={() => setActiveCat("all")}
@@ -1063,8 +820,6 @@ function SoundTagPicker({
             </button>
           ))}
         </div>
-
-        {/* Tag list */}
         <div className="max-h-56 overflow-y-auto p-2 scroll-area-custom">
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-6">

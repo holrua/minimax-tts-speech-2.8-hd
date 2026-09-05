@@ -1,5 +1,5 @@
 // LocalStorage-backed persistence. No login / no server accounts.
-// Stores: GMICloud key, settings, custom cloned voices, and generation history.
+// Stores: Rewind.ai key, settings, custom cloned voices, and generation history.
 
 export const STORAGE_KEYS = {
   apiKey: "vc_api_key",
@@ -11,29 +11,15 @@ export const STORAGE_KEYS = {
 export interface AppSettings {
   defaultVoice: string;
   speed: number;
-  outputFormat: "mp3" | "flac";
+  outputFormat: "mp3" | "wav";
   model: string;
-  vol: number;
-  pitch: number;
-  languageBoost: string;
-  audioSampleRate: string;
-  bitrate: string;
-  channel: string;
-  soundEffects: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultVoice: "Arabic_CalmWoman",
   speed: 1,
   outputFormat: "mp3",
-  model: "minimax-tts-speech-2.8-hd",
-  vol: 1,
-  pitch: 0,
-  languageBoost: "auto",
-  audioSampleRate: "32000",
-  bitrate: "128000",
-  channel: "2",
-  soundEffects: "none",
+  model: "minimax/speech-2.8-hd",
 };
 
 export interface CustomVoice {
@@ -51,9 +37,8 @@ export interface HistoryItem {
   voice: string;
   voiceLabel: string;
   speed: number;
-  format: "mp3" | "flac";
+  format: "mp3" | "wav";
   model?: string;
-  emotion?: string;
   audioBase64: string;
   mimeType: string;
   createdAt: number;
