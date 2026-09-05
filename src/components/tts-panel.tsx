@@ -138,6 +138,7 @@ export function TtsPanel({
     onVoicesChange?.();
   }, [customVoices, onVoicesChange]);
 
+  const charCount = text.length;
   const byteLen = utf8ByteLength(text);
   const cost = estimateCost(byteLen);
   const overLimit = byteLen > 50000;
@@ -277,7 +278,15 @@ export function TtsPanel({
               النص المراد تحويله إلى صوت
             </Label>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="font-mono text-xs">
+              <Badge
+                variant="secondary"
+                className={`font-mono text-xs ${
+                  overLimit ? "text-destructive" : ""
+                }`}
+              >
+                {charCount.toLocaleString()} حرف
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
                 {byteLen.toLocaleString()} بايت
               </Badge>
               <Badge
@@ -327,8 +336,8 @@ export function TtsPanel({
             className="min-h-[240px] resize-y text-base leading-relaxed scroll-area-custom"
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>الحد الأقصى: 50,000 بايت</span>
-            <span>يُحتسب التكلفة تلقائيًا حسب حجم النص</span>
+            <span>الحد الأقصى: 50,000 بايت (~16,000 حرف عربي)</span>
+            <span>يُحتسب عدد الأحرف والتكلفة تلقائيًا أثناء الكتابة</span>
           </div>
         </div>
 

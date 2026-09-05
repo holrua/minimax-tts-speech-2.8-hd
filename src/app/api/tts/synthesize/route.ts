@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
             error:
               "رصيدك من الـ tokens على Rewind.ai قد نفد" +
               detail +
-              ". اذهب إلى rewind.ai لإعادة شحن الرصيد، أو جرّب نموذجًا أرخص مثل «Kokoro 82M» (مجاني)، أو استخدم نصًا أقصر.",
+              ". اذهب إلى rewind.ai لإعادة شحن الرصيد، أو استخدم نصًا أقصر لتقليل عدد الـ tokens المطلوبة.",
           },
           { status: 402 },
         );
