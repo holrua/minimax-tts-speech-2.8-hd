@@ -96,6 +96,14 @@ export const VOICE_PRESETS: VoicePreset[] = [
     category: "english",
     gender: "female",
   },
+  {
+    id: "moss_audio_49c45f4a-98be-11f1-b655-02b7e1313c99",
+    label: "الصوت المستنسخ (إنجليزي)",
+    description:
+      "صوت مستنسخ مخصص — للنصوص الإنجليزية فقط. تم تدريبه على عينة إنجليزية، لذا لا ينطق العربية بطلاقة (يتهجّى الحروف). استخدمه للمحتوى الإنجليزي.",
+    category: "english",
+    gender: "male",
+  },
 
   // ---- Arabic voices ----
   {
@@ -109,13 +117,6 @@ export const VOICE_PRESETS: VoicePreset[] = [
     id: "Arabic_FriendlyGuy",
     label: "شاب ودود (عربي)",
     description: "صوت ذكوري عربي ناعم وعميق ومصقول — مناسب للمحتوى العام والعروض",
-    category: "arabic",
-    gender: "male",
-  },
-  {
-    id: "moss_audio_49c45f4a-98be-11f1-b655-02b7e1313c99",
-    label: "صوت مستنسخ (عربي)",
-    description: "صوت مستنسخ مخصص — يعمل عبر Rewind.ai بنموذج MiniMax Speech 2.8 HD",
     category: "arabic",
     gender: "male",
   },
